@@ -1,0 +1,17 @@
+rules_version = '2';
+// Regras de acesso do banco. Só as contas Google listadas abaixo podem ler e gravar.
+// Para dar acesso a mais alguém, acrescente o e-mail na lista e publique de novo.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function autorizado() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email in [
+          'SEU_EMAIL@gmail.com'
+        ];
+    }
+    match /fazendas/{fazenda}/{colecao}/{id} {
+      allow read, write: if autorizado();
+    }
+  }
+}
