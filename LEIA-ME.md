@@ -25,7 +25,7 @@ As contas usadas (GitHub e Firebase no plano Spark) são gratuitas para o tamanh
    pelo e-mail da conta Google que vai usar o sistema, e clicar em **Publicar**.
 4. Em **Authentication → Configurações → Domínios autorizados**, adicionar `felpz016.github.io`.
 5. No GitHub, em **Settings → Pages**, deixar **Source: GitHub Actions**. Cada envio para a
-   branch `main` publica o site em `https://felpz016.github.io/sistema-gado/`.
+   branch `main` publica o site em `https://felpz016.github.io/Sistema_Gado/`.
 
 ## Instalar no celular
 
