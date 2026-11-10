@@ -24,7 +24,7 @@
 
 *{box-sizing:border-box}
 html,body{height:100%}
-body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:15px;line-height:1.45}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--body);font-size:15px;line-height:1.45}
 body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:30;background:var(--accent)}
 button,input,select,textarea{font:inherit;color:inherit}
 .num{font-variant-numeric:tabular-nums}
@@ -212,3 +212,5 @@ form.card{display:flex;flex-direction:column;gap:16px}
 @media (max-width:820px){.mob-only{display:inline-flex}}
 .side .acts svg{width:20px;height:20px;flex:none}
 #form:empty,#avisos:empty{display:none}
+#root{min-height:100%}
+.login{min-height:100vh;min-height:100dvh}
