@@ -126,6 +126,12 @@ function render() {
   const dadosMudaram = novaAss !== assinatura;
   assinatura = novaAss;
 
+  if (S.erro === "sem-acesso") {
+    $("#form").innerHTML = "";
+    $("#lista").innerHTML = "";
+    telaAtual = null;
+    return;
+  }
   if (!S.carregado) {
     $("#form").innerHTML = "";
     $("#lista").innerHTML = '<div class="loading">Buscando os dados…</div>';

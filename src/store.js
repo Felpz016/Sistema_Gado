@@ -60,6 +60,7 @@ function storeNuvem(avisar, config, emulador) {
   const pendDocs = Object.fromEntries(COLECOES.map((c) => [c, 0]));
   let excluindo = 0;
   let pararOuvir = [];
+  let tentarDeNovo = null;
 
   const ref = (col, id) => doc(fs, "fazendas", FAZENDA_ID, col, id);
   const recontar = () => {
@@ -86,6 +87,9 @@ function storeNuvem(avisar, config, emulador) {
           S.erro = err.code === "permission-denied" ? "sem-acesso" : "Erro ao ler os dados: " + err.message;
           S.carregado = true;
           avisar();
+          // Tenta de novo depois de um tempo (ex.: as regras de acesso acabaram de ser liberadas).
+          clearTimeout(tentarDeNovo);
+          tentarDeNovo = setTimeout(() => { if (auth.currentUser) ouvir(); }, 20000);
         }
       )
     );
