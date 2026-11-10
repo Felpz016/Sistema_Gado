@@ -1,4 +1,4 @@
-import { criarStore } from "./store.js";
+import { criarStore, ultimoEmail } from "./store.js";
 import {
   hojeISO, dias, pesoAtual, referenciaAnterior, calcGmd, ultimoGmd, saidaDoLote, resumo, pesagensDoLote,
 } from "./calc.js";
@@ -191,7 +191,8 @@ function telaLogin(root) {
     <small class="label" style="color:inherit;opacity:.8">Controle de gado</small>
     <h1>Fazenda São João</h1>
     <p>Entre com a sua conta Google para ver e lançar os dados da fazenda.</p>
-    <button class="btn" type="button" id="btnEntrar">Entrar com Google</button>
+    <button class="btn" type="button" id="btnEntrar">${ultimoEmail() ? "Entrar como " + esc(ultimoEmail()) : "Entrar com Google"}</button>
+    ${ultimoEmail() ? '<p style="font-size:13px;opacity:.8">Depois de entrar, o sistema fica conectado neste aparelho até você tocar em Sair.</p>' : ""}
     ${navigator.onLine ? "" : '<div class="err">Você está sem internet. O primeiro acesso em cada aparelho precisa de conexão. Depois disso o sistema funciona sem internet.</div>'}
     <div id="loginErr"></div>
   </div></div>`;

@@ -5,7 +5,8 @@
 //    neste navegador, com exemplos, para testar as telas.
 import { initializeApp } from "firebase/app";
 import {
-  getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signInWithRedirect, signOut,
+  initializeAuth, indexedDBLocalPersistence, browserLocalPersistence, browserPopupRedirectResolver,
+  onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signInWithRedirect, signOut,
   connectAuthEmulator, signInWithCredential,
 } from "firebase/auth";
 import {
@@ -37,7 +38,11 @@ export function criarStore(avisar) {
 // ---------------------------------------------------------------- nuvem
 function storeNuvem(avisar, config, emulador) {
   const app = initializeApp(config);
-  const auth = getAuth(app);
+  // A sessão fica guardada no aparelho (não some ao fechar o navegador ou o app).
+  const auth = initializeAuth(app, {
+    persistence: [indexedDBLocalPersistence, browserLocalPersistence],
+    popupRedirectResolver: browserPopupRedirectResolver,
+  });
   const fs = initializeFirestore(app, {
     localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
   });
@@ -97,7 +102,12 @@ function storeNuvem(avisar, config, emulador) {
 
   onAuthStateChanged(auth, (u) => {
     S.usuario = u ? { nome: u.displayName, email: u.email, foto: u.photoURL } : null;
-    if (u) ouvir();
+    if (u) {
+      lembrar(u.email);
+      // Pede ao navegador para não apagar os dados do app (sessão e lançamentos sem internet).
+      navigator.storage?.persist?.().catch(() => {});
+      ouvir();
+    }
     else {
       pararOuvir.forEach((f) => f());
       pararOuvir = [];
@@ -140,7 +150,9 @@ function storeNuvem(avisar, config, emulador) {
     gravar,
     async entrar() {
       const prov = new GoogleAuthProvider();
-      prov.setCustomParameters({ prompt: "select_account" });
+      // Já sugere a última conta usada, para não precisar digitar o e-mail.
+      const ultimo = ultimoEmail();
+      if (ultimo) prov.setCustomParameters({ login_hint: ultimo });
       try {
         await signInWithPopup(auth, prov);
       } catch (e) {
@@ -153,6 +165,15 @@ function storeNuvem(avisar, config, emulador) {
     },
     sair: () => signOut(auth),
   };
+}
+
+// Último e-mail que entrou neste aparelho (só para sugerir no login).
+const CHAVE_EMAIL = "gado-ultimo-email";
+export function ultimoEmail() {
+  try { return localStorage.getItem(CHAVE_EMAIL) || ""; } catch { return ""; }
+}
+function lembrar(email) {
+  try { if (email) localStorage.setItem(CHAVE_EMAIL, email); } catch { /* bloqueado */ }
 }
 
 // Firestore não aceita campos "undefined".
