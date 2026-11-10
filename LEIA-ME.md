@@ -10,12 +10,12 @@ conexão fica guardado no aparelho e sobe sozinho para a nuvem quando a internet
 
 | Parte | O que faz |
 |---|---|
-| Site (GitHub Pages) | As telas do sistema. Pode ser instalado no celular como um app. |
+| Site (Firebase Hosting) | As telas do sistema, em https://gado-sao-joao.web.app. Pode ser instalado no celular como um app. |
 | Firebase Firestore | O banco de dados na nuvem. Guarda uma cópia no aparelho para funcionar sem internet. |
 | Login com Google | Só as contas autorizadas nas regras do banco conseguem ver e lançar dados. |
 | Botão "Baixar planilha Excel" | Gera um `.xlsx` com as abas Resumo, Lotes, Entradas, Saídas, Pesagens e Sanidade. |
 
-As contas usadas (GitHub e Firebase no plano Spark) são gratuitas para o tamanho de uma fazenda.
+O Firebase no plano Spark é gratuito para o tamanho de uma fazenda.
 
 ## Configuração (uma vez só)
 
@@ -23,9 +23,11 @@ As contas usadas (GitHub e Firebase no plano Spark) são gratuitas para o tamanh
 2. Registrar um app **Web** no projeto e colar o bloco `firebaseConfig` em `src/firebase-config.js`.
 3. Em **Firestore → Regras**, colar o conteúdo de `firestore.rules`, trocando `SEU_EMAIL@gmail.com`
    pelo e-mail da conta Google que vai usar o sistema, e clicar em **Publicar**.
-4. Em **Authentication → Configurações → Domínios autorizados**, adicionar `felpz016.github.io`.
-5. No GitHub, em **Settings → Pages**, deixar **Source: GitHub Actions**. Cada envio para a
-   branch `main` publica o site em `https://felpz016.github.io/Sistema_Gado/`.
+4. Em **Hosting**, clicar em "Vamos começar" (só para ativar).
+5. Em **Configurações do projeto → Contas de serviço**, gerar uma chave privada e guardar o conteúdo do
+   `.json` no GitHub como secret `FIREBASE_SERVICE_ACCOUNT` (Settings → Secrets and variables → Actions).
+   Cada envio para a branch `main` publica o site em `https://gado-sao-joao.web.app`.
+   O endereço antigo `felpz016.github.io/Sistema_Gado` (GitHub Pages) só redireciona para o novo.
 
 ## Instalar no celular
 

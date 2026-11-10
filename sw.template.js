@@ -5,7 +5,12 @@ const ARQUIVOS = __ARQUIVOS__;
 const CACHE = "gado-" + VERSAO;
 
 self.addEventListener("install", (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ARQUIVOS)).then(() => self.skipWaiting()));
+  // cache: "reload" garante que vem a versão nova do servidor, e não uma cópia velha do navegador.
+  e.waitUntil(
+    caches.open(CACHE)
+      .then((c) => c.addAll(ARQUIVOS.map((u) => new Request(u, { cache: "reload" }))))
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener("activate", (e) => {
