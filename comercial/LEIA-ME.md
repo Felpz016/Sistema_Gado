@@ -32,7 +32,7 @@ dados de outra conta nem libera a própria assinatura.
 
 ## Colocar no ar
 
-1. Criar um projeto novo no Firebase (não usar o da Fazenda São João).
+1. O projeto Firebase é o `lote-certo-2ec77`. A publicação é automática pelo GitHub Actions (`.github/workflows/publicar-lote-certo.yml`), com os segredos `LOTE_CERTO_SERVICE_ACCOUNT` e `LOTE_CERTO_ADMIN_EMAIL`. Os passos abaixo são para fazer à mão.
 2. Firestore: criar o banco em `southamerica-east1`.
 3. Authentication: ativar o login com Google.
 4. Colar o `firebaseConfig` do app Web em `src/firebase-config.js`.
