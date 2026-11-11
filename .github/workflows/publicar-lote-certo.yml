@@ -47,6 +47,7 @@ jobs:
       - name: Publicar site, sistema e regras do banco
         run: |
           printf '%s' "$CONTA_DE_SERVICO" > "$RUNNER_TEMP/conta.json"
+          echo "Conta usada na publicação (é ela que precisa dos papéis no IAM): $(node -e 'const c=require(process.argv[1]);console.log(c.client_email.split("@")[0]+" @ "+c.project_id)' "$RUNNER_TEMP/conta.json")"
           GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/conta.json" \
             npx --yes firebase-tools@13 deploy --only hosting,firestore:rules --project lote-certo-2ec77 --non-interactive
           rm -f "$RUNNER_TEMP/conta.json"
