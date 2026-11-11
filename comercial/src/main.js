@@ -614,14 +614,18 @@ function telaBloqueio(root, tipo) {
            <p style="font-size:14px">Já pagou? A liberação é feita para o e-mail <b>${esc(S.usuario.email)}</b>. Se você comprou com outro e-mail, avise o suporte. Esta tela se atualiza sozinha quando o acesso for liberado.</p>`
         : `<p>Você usa a conta de ${esc(S.conta.donoNome || "outra pessoa")}, e a assinatura dela não está ativa no momento.</p>`}`;
   }
-  root.innerHTML = `<div class="login"><div class="box">${h}${rodape}</div></div>`;
+  const aviso = S.erro && tipo !== "erro"
+    ? `<div class="err">${S.erro === "sem-acesso" ? "O banco recusou a gravação. Feche e abra o sistema de novo. Se continuar, avise o suporte." : esc(S.erro)}</div>` : "";
+  root.innerHTML = `<div class="login"><div class="box">${h}${aviso}${rodape}</div></div>`;
   const f = $("#fFaz1");
   if (f) f.onsubmit = (ev) => {
     ev.preventDefault();
     const nome = $("#faz1").value.trim();
     if (!erros(f, nome ? [] : [["faz1", "Informe o nome da fazenda."]])) return;
+    const bt = f.querySelector("button[type=submit]");
+    bt.disabled = true; bt.textContent = "Criando a fazenda…";
     store.criarFazenda(nome);
-    location.hash = "painel";
+    if (location.hash !== "#painel") location.hash = "painel";
   };
 }
 

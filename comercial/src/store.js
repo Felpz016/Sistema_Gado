@@ -83,6 +83,23 @@ function storeNuvem(avisar, config, emulador) {
   let parar = { convite: [], conta: [], fazenda: [], admin: [] };
   const soltar = (k) => { parar[k].forEach((f) => f()); parar[k] = []; };
 
+  // Liga um "ouvinte" do banco e, se o banco recusar por permissão, tenta de novo algumas vezes.
+  // Isso cobre o instante logo depois da liberação, quando o aparelho já sabe que a assinatura
+  // está ativa mas o servidor ainda não terminou de gravar.
+  function ouvirSempre(abrir, desistir) {
+    let tent = 0, un = null, vivo = true, timer = null;
+    const ligar = () => {
+      if (!vivo) return;
+      un = abrir(() => { tent = 0; }, (err) => {
+        if (un) un();
+        if (vivo && err.code === "permission-denied" && tent < 8) { tent++; timer = setTimeout(ligar, 800 * tent); }
+        else if (vivo) desistir(err);
+      });
+    };
+    ligar();
+    return () => { vivo = false; clearTimeout(timer); if (un) un(); };
+  }
+
   const raizFaz = () => ["contas", S.conta.id, "fazendas", S.fazendaId];
   const ref = (col, id) => doc(fs, ...raizFaz(), col, id);
   const recontar = () => {
@@ -102,9 +119,11 @@ function storeNuvem(avisar, config, emulador) {
     recontar();
     if (!S.fazendaId) { avisar(); return; }
     const prontos = new Set();
-    parar.fazenda = COLECOES.map((col) =>
-      onSnapshot(collection(fs, ...raizFaz(), col), { includeMetadataChanges: true },
+    const raiz = raizFaz();
+    parar.fazenda = COLECOES.map((col) => ouvirSempre((deuCerto, deuErro) =>
+      onSnapshot(collection(fs, ...raiz, col), { includeMetadataChanges: true },
         (snap) => {
+          deuCerto();
           S.db[col] = snap.docs.map((d) => ({ ...d.data(), id: d.id }));
           pendDocs[col] = snap.docs.filter((d) => d.metadata.hasPendingWrites).length;
           recontar();
@@ -112,8 +131,8 @@ function storeNuvem(avisar, config, emulador) {
           if (prontos.size === COLECOES.length) S.carregado = true;
           S.erro = null;
           avisar();
-        },
-        (err) => { S.carregado = true; falha(err, "ler os dados"); }));
+        }, deuErro),
+      (err) => { S.carregado = true; falha(err, "ler os dados"); }));
     avisar();
   }
 
@@ -146,7 +165,8 @@ function storeNuvem(avisar, config, emulador) {
     function ouvirFazendas() {
       if (jaOuvindo) return;
       jaOuvindo = true;
-      parar.conta.push(onSnapshot(collection(fs, "contas", contaId, "fazendas"), (snap) => {
+      parar.conta.push(ouvirSempre((deuCerto, deuErro) => onSnapshot(collection(fs, "contas", contaId, "fazendas"), (snap) => {
+        deuCerto();
         S.fazendas = snap.docs.map((d) => ({ ...d.data(), id: d.id }))
           .sort((a, b) => String(a.nome).localeCompare(String(b.nome), "pt-BR", { numeric: true }));
         S.erro = null;
@@ -157,12 +177,13 @@ function storeNuvem(avisar, config, emulador) {
           escolherFazenda(alvo ? alvo.id : null);
         }
         avisar();
-      }, (err) => { S.fazendas = []; falha(err, "ler as fazendas"); }));
+      }, deuErro), (err) => { S.fazendas = []; falha(err, "ler as fazendas"); }));
       if (contaId === uid) {
-        parar.conta.push(onSnapshot(collection(fs, "contas", contaId, "membros"), (snap) => {
+        parar.conta.push(ouvirSempre((deuCerto, deuErro) => onSnapshot(collection(fs, "contas", contaId, "membros"), (snap) => {
+          deuCerto();
           S.membros = snap.docs.map((d) => ({ ...d.data(), email: d.id })).sort((a, b) => a.email.localeCompare(b.email));
           avisar();
-        }, () => {}));
+        }, deuErro), () => {}));
       }
     }
     avisar();
