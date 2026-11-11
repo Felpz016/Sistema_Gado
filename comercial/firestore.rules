@@ -1,0 +1,69 @@
+rules_version = '2';
+// Regras de acesso do banco do Lote Certo.
+//  - Qualquer pessoa pode entrar com o Google e criar o próprio cadastro.
+//  - Os dados das fazendas só abrem para contas com ASSINATURA ATIVA.
+//  - Só o administrador (lista de e-mails abaixo) libera ou bloqueia assinaturas.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function logado() { return request.auth != null; }
+    function verificado() { return logado() && request.auth.token.email_verified == true; }
+
+    // TROQUE pelo e-mail Google de quem administra o Lote Certo e publique de novo.
+    function admin() {
+      return verificado() && request.auth.token.email in [
+        'SEU_EMAIL@gmail.com'
+      ];
+    }
+    function dono(conta) { return logado() && request.auth.uid == conta; }
+    // Sócio ou funcionário incluído pelo dono da conta.
+    function membro(conta) {
+      return verificado()
+        && exists(/databases/$(database)/documents/contas/$(conta)/membros/$(request.auth.token.email));
+    }
+    function assinaturaAtiva(conta) {
+      let caminho = /databases/$(database)/documents/assinaturas/$(conta);
+      return exists(caminho)
+        && get(caminho).data.ativa == true
+        && (get(caminho).data.get('ate', null) == null || get(caminho).data.ate > request.time);
+    }
+    function podeUsar(conta) { return (dono(conta) || membro(conta)) && assinaturaAtiva(conta); }
+
+    // Cadastro de quem entrou. O administrador lê todos para saber quem liberar.
+    match /contas/{conta} {
+      allow read: if dono(conta) || admin();
+      allow create, update: if dono(conta)
+        && request.resource.data.keys().hasOnly(['email', 'nome', 'atualizadoEm']);
+
+      match /membros/{email} {
+        allow read: if dono(conta) || (verificado() && request.auth.token.email == email);
+        allow create, update: if dono(conta) && assinaturaAtiva(conta);
+        allow delete: if dono(conta);
+      }
+      match /fazendas/{fazenda} {
+        allow read: if podeUsar(conta);
+        allow create, update: if dono(conta) && assinaturaAtiva(conta);
+        // lotes, pesagens, sanidade, saidas
+        match /{colecao}/{id} {
+          allow read, write: if podeUsar(conta);
+        }
+      }
+    }
+
+    // Diz a quem entra de qual conta ele é membro. Um e-mail só pode ser membro de uma conta.
+    match /convites/{email} {
+      allow read: if verificado() && request.auth.token.email == email;
+      allow create: if logado() && request.resource.data.donoUid == request.auth.uid
+        && assinaturaAtiva(request.auth.uid);
+      allow update: if logado() && resource.data.donoUid == request.auth.uid
+        && request.resource.data.donoUid == request.auth.uid;
+      allow delete: if logado() && resource.data.donoUid == request.auth.uid;
+    }
+
+    // Assinatura de cada conta. Só o administrador grava
+    // (ou, no futuro, o aviso automático da plataforma de pagamento).
+    match /assinaturas/{conta} {
+      allow read: if dono(conta) || membro(conta) || admin();
+      allow write: if admin();
+    }
+  }
+}

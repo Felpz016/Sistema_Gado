@@ -1,0 +1,945 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="Lote Certo: controle de gado de corte por lote. Pesagem com ganho médio diário, sanidade e planilha Excel, mesmo sem internet.">
+<meta name="theme-color" content="#0A1710">
+<link rel="icon" href="app/icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<title>Lote Certo</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800;900&family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&family=Caveat:wght@500;700&display=swap">
+<style>
+/* Layout: a abertura é a fazenda vista de cima (pastos verdes, estradas de terra vermelha, cada ponto branco é uma cabeça).
+   Depois a página alterna noite de pasto e palha: caderno x sistema, telas no celular, balança, mosaico de benefícios, planos. Visual único, sem tema claro/escuro. */
+:root{
+  --night:#0A1710; --night-2:#102318; --night-3:#173022; --night-line:#27432F;
+  --grass:#2C7A44; --grass-2:#1F5A33; --grass-3:#46A05E;
+  --earth:#A2512C; --earth-2:#6E3620;
+  --straw:#F2EEDF; --straw-2:#E6DFC8; --straw-line:#CFC6A8;
+  --ink:#14201A; --ink-muted:#58645B;
+  --hide:#F7F3E7; --fog:#A6B9A8;
+  --tag:#F4B92F; --tag-2:#FFD060; --tag-ink:#241A02;
+  --ok:#2F8A4A; --ok-soft:#D5EBD6; --warn:#A86400; --warn-soft:#FAE6BE; --bad:#B23C2A; --bad-soft:#F6D9D2;
+  --app-bg:#EEF1EA; --app-surface:#FBFCF8; --app-line:#CBD3C2; --app-fg:#1E2A1F; --app-muted:#5C6A5B; --app-accent:#2E5E3B; --app-soft:#D6E5D3;
+  --display:"Big Shoulders Display","Arial Narrow","Barlow Condensed",system-ui,sans-serif;
+  --body:"Instrument Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+  --hand:"Caveat","Segoe Print","Comic Sans MS",cursive;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:calc(72px + env(safe-area-inset-top,0px))}
+body{margin:0;background:var(--night);color:var(--ink);font-family:var(--body);font-size:17px;line-height:1.55;-webkit-font-smoothing:antialiased}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:60;background:var(--night)}
+h1,h2,h3{font-family:var(--display);margin:0;text-wrap:balance;text-transform:uppercase;line-height:.92;letter-spacing:.005em}
+p{margin:0}
+a{color:inherit}
+button{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--tag);outline-offset:3px;border-radius:6px}
+.wrap{max-width:1200px;margin-inline:auto;padding-left:max(20px,env(safe-area-inset-left,0px));padding-right:max(20px,env(safe-area-inset-right,0px))}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.kicker{font-family:var(--mono);font-size:12.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:500;display:flex;align-items:center;gap:10px}
+.kicker::before{content:"";width:28px;height:2px;background:currentColor;flex:none}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:54px;padding:12px 26px;border-radius:999px;border:1.5px solid transparent;
+  font:600 17px/1.2 var(--body);text-decoration:none;cursor:pointer;transition:transform .18s ease,background .18s ease,box-shadow .18s ease}
+.btn svg{width:18px;height:18px;transition:transform .18s ease}
+.btn:hover svg{transform:translateX(4px)}
+.btn-tag{background:var(--tag);color:var(--tag-ink);box-shadow:0 10px 30px -10px rgba(244,185,47,.7)}
+.btn-tag:hover{background:var(--tag-2);transform:translateY(-2px)}
+.btn-ghost{border-color:rgba(247,243,231,.28);color:var(--hide)}
+.btn-ghost:hover{background:rgba(247,243,231,.08)}
+.btn-ink{border-color:var(--ink);color:var(--ink)}
+.btn-ink:hover{background:var(--ink);color:var(--straw)}
+.btn-sm{min-height:42px;padding:8px 18px;font-size:15px}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}.btn,.btn svg{transition:none}}
+
+/* ===== topo ===== */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:50;background:rgba(10,23,16,.82);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);color:var(--hide);border-bottom:1px solid rgba(247,243,231,.08)}
+.top .wrap{display:flex;align-items:center;gap:24px;padding-block:12px}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none;font-family:var(--display);font-weight:800;font-size:27px;line-height:1;text-transform:uppercase;letter-spacing:.02em}
+.brand svg{width:32px;height:32px;flex:none}
+.top nav{display:flex;gap:26px;margin-left:auto;font-size:15px;font-weight:500}
+.top nav a{text-decoration:none;color:var(--fog)}
+.top nav a:hover{color:var(--hide)}
+.top .entrar{color:var(--hide);font-weight:600;font-size:15px;text-decoration:none}
+@media (max-width:860px){.top nav{display:none}.top .entrar{margin-left:auto}}
+
+/* ===== abertura: fazenda vista de cima ===== */
+.hero{background:radial-gradient(120% 90% at 85% 10%,#16331F 0%,var(--night) 62%);color:var(--hide);overflow:hidden}
+.hero-top{position:relative}
+.hero-text{position:relative;z-index:2;padding-block:72px 56px;max-width:540px;display:flex;flex-direction:column;gap:24px}
+.hero .kicker{color:var(--tag)}
+.hero h1{font-weight:900;font-size:clamp(50px,6.4vw,90px);line-height:.88;text-shadow:0 2px 30px rgba(10,23,16,.9)}
+.hero h1 span{display:block}
+.hero h1 .y{color:var(--tag)}
+.hero h1 .o{color:transparent;-webkit-text-stroke:2px var(--hide)}
+.hero .sub{font-size:20px;color:var(--fog);max-width:46ch;text-shadow:0 1px 16px rgba(10,23,16,.9)}
+.hero .cta{display:flex;flex-wrap:wrap;gap:12px}
+.map{position:absolute;inset:0 0 0 auto;width:57%;z-index:1;
+  -webkit-mask-image:linear-gradient(to right,transparent 0,#000 14%),linear-gradient(to top,transparent 0,#000 12%);-webkit-mask-composite:source-in;
+  mask-image:linear-gradient(to right,transparent 0,#000 14%),linear-gradient(to top,transparent 0,#000 12%);mask-composite:intersect}
+.map canvas{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:pointer}
+.map-tag{position:absolute;transform:translate(-50%,-50%);display:flex;align-items:center;gap:8px;padding:5px 11px 5px 6px;border-radius:999px;border:1px solid rgba(247,243,231,.35);
+  background:rgba(10,23,16,.78);color:var(--hide);cursor:pointer;white-space:nowrap;font-family:var(--mono);font-size:12.5px;font-weight:500;transition:background .2s,color .2s,transform .2s}
+.map-tag b{font-family:var(--display);font-weight:800;font-size:16px;background:var(--hide);color:var(--night);border-radius:999px;padding:2px 8px;line-height:1.1}
+.map-tag:hover{transform:translate(-50%,-50%) scale(1.06)}
+.map-tag[aria-pressed="true"]{background:var(--tag);color:var(--tag-ink);border-color:var(--tag)}
+.map-tag[aria-pressed="true"] b{background:var(--tag-ink);color:var(--tag)}
+.map-legend{position:absolute;right:max(20px,env(safe-area-inset-right,0px));bottom:26px;font-family:var(--mono);font-size:12px;color:var(--fog);display:flex;align-items:center;gap:8px;background:rgba(10,23,16,.7);padding:5px 10px;border-radius:6px}
+.map-legend i{width:7px;height:7px;border-radius:50%;background:var(--hide);flex:none}
+@media (max-width:980px){
+  .hero-top{display:flex;flex-direction:column}
+  .hero-text{padding-block:36px 24px;max-width:none}
+  .map{order:2;position:relative;inset:auto;width:auto;aspect-ratio:1/1.02;-webkit-mask-image:linear-gradient(to top,transparent 0,#000 8%);mask-image:linear-gradient(to top,transparent 0,#000 8%)}
+  .map-legend{right:20px;bottom:18px}
+}
+
+/* visor do lote selecionado */
+.hud{position:relative;z-index:3;border-top:1px solid var(--night-line);background:rgba(16,35,24,.9)}
+.hud .wrap{display:grid;grid-template-columns:1.5fr repeat(4,minmax(0,1fr)) 1.6fr;gap:0}
+.hud-cell{padding:20px 20px 22px;border-left:1px solid var(--night-line);display:flex;flex-direction:column;gap:6px;min-width:0}
+.hud-cell:first-child{border-left:0;padding-left:0}
+.hud-cell .k{font-family:var(--mono);font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--fog)}
+.hud-cell .v{font-family:var(--display);font-weight:700;font-size:34px;line-height:1;text-transform:uppercase}
+.hud-cell .v small{font-family:var(--mono);font-size:13px;font-weight:400;color:var(--fog);margin-left:5px;text-transform:none}
+.hud-cell .s{font-size:14px;color:var(--fog)}
+.hud-gmd .v{font-size:58px;font-weight:900;color:var(--tag)}
+.hud-gmd .row{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:3px 11px;font-size:13px;font-weight:600;font-family:var(--body);white-space:nowrap}
+.chip.bom{background:var(--ok-soft);color:#1E5E31}
+.chip.regular{background:var(--warn-soft);color:#7A4900}
+.chip.baixo{background:var(--bad-soft);color:#8A2A1B}
+@media (max-width:980px){
+  .hud .wrap{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .hud-cell{padding:14px 14px 16px 0;border-left:0;border-top:1px solid var(--night-line)}
+  .hud-cell:first-child,.hud-gmd{grid-column:1/-1}
+  .hud-cell:first-child{border-top:0}
+}
+
+/* ===== faixa corrida ===== */
+.ticker{background:var(--tag);color:var(--tag-ink);overflow:hidden;border-block:2px solid var(--tag-ink)}
+.ticker-track{display:flex;width:max-content;animation:roll 38s linear infinite}
+.ticker-track span{font-family:var(--display);font-weight:900;font-size:clamp(30px,4.4vw,52px);text-transform:uppercase;line-height:1;padding:14px 0;white-space:nowrap}
+.ticker-track span::after{content:"";display:inline-block;width:.38em;height:.38em;border-radius:50%;background:var(--tag-ink);margin-inline:.55em;vertical-align:.18em}
+.ticker-track span:nth-child(even){color:transparent;-webkit-text-stroke:1.5px var(--tag-ink)}
+@keyframes roll{to{transform:translateX(-50%)}}
+@media (prefers-reduced-motion:reduce){.ticker-track{animation:none}}
+
+/* ===== seções ===== */
+.sec{padding-block:96px}
+.sec.straw{background:var(--straw);color:var(--ink)}
+.sec.night{background:var(--night);color:var(--hide)}
+.sec.night .kicker{color:var(--tag)}
+.sec.straw .kicker{color:var(--earth)}
+.sec-head{display:flex;flex-direction:column;gap:16px;margin-bottom:48px;max-width:900px}
+.sec-head h2{font-weight:900;font-size:clamp(42px,6.2vw,84px)}
+.sec-head h2 em{font-style:normal;color:var(--earth)}
+.sec.night .sec-head h2 em{color:var(--tag)}
+.sec-head p{font-size:19px;max-width:58ch;color:var(--ink-muted)}
+.sec.night .sec-head p{color:var(--fog)}
+@media (max-width:700px){.sec{padding-block:60px}.sec-head{margin-bottom:32px}}
+
+/* ===== caderno x sistema ===== */
+.duel{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:28px;align-items:center}
+.duel-arrow{font-family:var(--display);font-weight:900;font-size:64px;color:var(--earth);line-height:1}
+.note{background:#FFFDF2;background-image:repeating-linear-gradient(to bottom,transparent 0 37px,#C9D6E6 37px 38px);border-radius:4px;padding:26px 26px 30px 54px;position:relative;
+  box-shadow:0 1px 0 #D8D0B4,0 24px 40px -22px rgba(20,32,26,.45);transform:rotate(-1.6deg);font-family:var(--hand);font-size:27px;line-height:38px;color:#22304F;min-width:0}
+.note::before{content:"";position:absolute;left:38px;top:0;bottom:0;width:2px;background:#E7A7A0}
+.note s{text-decoration-thickness:2px;color:#7B86A0}
+.note .q{color:#B23C2A;font-weight:700}
+.note-cap,.sys-cap{font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;margin-bottom:14px;color:var(--ink-muted)}
+.sys{background:var(--night);color:var(--hide);border-radius:18px;padding:26px;display:flex;flex-direction:column;gap:18px;box-shadow:0 30px 60px -30px rgba(10,23,16,.8);min-width:0}
+.sys-head{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}
+.sys-head b{font-family:var(--display);font-size:30px;font-weight:800;text-transform:uppercase;line-height:1}
+.sys-num{font-family:var(--display);font-weight:900;font-size:clamp(64px,9vw,96px);line-height:.85;color:var(--tag)}
+.sys-num small{font-family:var(--mono);font-size:14px;font-weight:400;color:var(--fog);margin-left:8px}
+.sys-rows{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;background:var(--night-line);border:1px solid var(--night-line);border-radius:10px;overflow:hidden}
+.sys-rows div{background:var(--night-2);padding:12px 14px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.sys-rows .k{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--fog)}
+.sys-rows .v{font-weight:600;font-size:16px}
+@media (max-width:900px){.duel{grid-template-columns:minmax(0,1fr)}.duel-arrow{transform:rotate(90deg);justify-self:center;font-size:48px}}
+
+/* ===== telas do sistema ===== */
+.tour{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:64px;align-items:center}
+.tour-tabs{display:flex;flex-direction:column;gap:6px}
+.tour-tab{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 18px;text-align:left;background:transparent;border:0;border-top:1px solid var(--night-line);padding:22px 4px;cursor:pointer;color:var(--fog);transition:color .2s}
+.tour-tab .n{font-family:var(--mono);font-size:13px;padding-top:9px;grid-row:1/3}
+.tour-tab .t{font-family:var(--display);font-weight:800;font-size:clamp(30px,3.6vw,44px);text-transform:uppercase;line-height:1}
+.tour-tab .d{font-size:16.5px;max-width:48ch;display:none}
+.tour-tab:hover{color:var(--hide)}
+.tour-tab[aria-selected="true"]{color:var(--hide)}
+.tour-tab[aria-selected="true"] .t{color:var(--tag)}
+.tour-tab[aria-selected="true"] .d{display:block;color:var(--fog)}
+.stage{display:flex;flex-direction:column;align-items:center;gap:20px;position:relative}
+.stage::before{content:"";position:absolute;width:420px;height:420px;max-width:100%;border-radius:50%;background:radial-gradient(closest-side,rgba(70,160,94,.45),transparent);top:50%;left:50%;transform:translate(-50%,-55%);filter:blur(10px)}
+.phone{position:relative;width:312px;max-width:100%;background:#050B07;border-radius:44px;padding:11px;box-shadow:0 0 0 1.5px #2C4A36,0 50px 80px -30px rgba(0,0,0,.9);transform:perspective(1400px) rotateY(-9deg) rotateX(3deg);transition:transform .5s ease}
+.phone:hover{transform:perspective(1400px) rotateY(-3deg) rotateX(1deg)}
+.phone::before{content:"";position:absolute;top:20px;left:50%;transform:translateX(-50%);width:84px;height:22px;border-radius:999px;background:#050B07;z-index:3}
+.screen{background:var(--app-bg);color:var(--app-fg);border-radius:34px;overflow:hidden;height:590px;display:flex;flex-direction:column;font-size:13.5px;line-height:1.4}
+.ph-top{background:var(--app-accent);color:#F4F8F1;padding:48px 16px 14px;display:flex;justify-content:space-between;align-items:flex-end;gap:8px}
+.ph-top b{font-family:var(--display);font-weight:800;font-size:22px;text-transform:uppercase;line-height:1;display:block}
+.ph-top small{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;opacity:.75}
+.ph-sync{display:inline-flex;align-items:center;gap:6px;background:rgba(244,248,241,.14);border-radius:999px;padding:4px 10px;font-size:11px;font-weight:600;white-space:nowrap}
+.ph-sync i{width:7px;height:7px;border-radius:50%;background:#8BE0A0;flex:none}
+.ph-sync.off{background:var(--tag);color:var(--tag-ink)}
+.ph-sync.off i{background:var(--tag-ink)}
+.ph-body{flex:1;padding:14px;display:flex;flex-direction:column;gap:10px;overflow:hidden}
+.ph-body[hidden]{display:none}
+.ph-card{background:var(--app-surface);border:1px solid var(--app-line);border-radius:12px;padding:12px}
+.ph-label{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--app-muted);font-weight:600}
+.ph-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.ph-kpis .ph-card{padding:10px}
+.ph-kpis b{font-family:var(--display);font-size:30px;font-weight:800;line-height:1;display:block;margin-top:4px}
+.ph-kpis b small{font-size:13px;font-weight:600;color:var(--app-muted)}
+.ph-lot{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.ph-lot b{font-family:var(--display);font-size:19px;font-weight:700;text-transform:uppercase;line-height:1.1;display:block}
+.ph-lot span{font-size:11.5px;color:var(--app-muted)}
+.ph-lot .chip{font-size:11.5px;padding:2px 9px}
+.ph-field{display:flex;flex-direction:column;gap:4px}
+.ph-input{background:var(--app-surface);border:1.5px solid var(--app-line);border-radius:9px;padding:9px 11px;font-size:15px;font-weight:600;display:flex;justify-content:space-between}
+.ph-input.on{border-color:var(--app-accent)}
+.ph-result{background:var(--app-accent);color:#F4F8F1;border-radius:12px;padding:12px 14px}
+.ph-result b{font-family:var(--display);font-size:42px;font-weight:900;line-height:.95;display:block}
+.ph-result b small{font-size:13px;font-weight:500;margin-left:5px}
+.ph-result span{font-size:11.5px;opacity:.85}
+.ph-btn{background:var(--app-accent);color:#F4F8F1;border-radius:10px;text-align:center;padding:11px;font-weight:600;font-size:14px;margin-top:auto}
+.ph-btn.xl{background:#1D6F42;display:flex;align-items:center;justify-content:center;gap:8px;margin-top:0}
+.ph-sheet{border:1px solid var(--app-line);border-radius:10px;overflow:hidden;background:#fff;font-family:var(--mono);font-size:10px;color:#1E2A1F}
+.ph-sheet .r{display:grid;grid-template-columns:1.1fr 1fr 1fr 1fr;border-top:1px solid #DDE3D6}
+.ph-sheet .r:first-child{border-top:0;background:#1D6F42;color:#fff;font-weight:600}
+.ph-sheet .r span{padding:6px 7px;border-left:1px solid #DDE3D6;white-space:nowrap;overflow:hidden}
+.ph-sheet .r span:first-child{border-left:0}
+.ph-sheet .g{background:#D9EBD9}.ph-sheet .a{background:#FBE8C8}.ph-sheet .b{background:#F6DDD8}
+.ph-tabs{display:flex;gap:4px;flex-wrap:wrap}
+.ph-tabs span{font-size:10.5px;font-weight:600;padding:4px 9px;border-radius:6px 6px 0 0;background:var(--app-soft);color:var(--app-accent)}
+.ph-tabs span:first-child{background:#1D6F42;color:#fff}
+.switch{display:inline-flex;align-items:center;gap:12px;cursor:pointer;font-size:15px;color:var(--fog);position:relative;z-index:1;user-select:none}
+.switch input{position:absolute;opacity:0;width:1px;height:1px}
+.switch .tr{width:50px;height:28px;border-radius:999px;background:var(--night-3);border:1.5px solid var(--night-line);position:relative;transition:background .2s;flex:none}
+.switch .tr::after{content:"";position:absolute;top:3px;left:3px;width:19px;height:19px;border-radius:50%;background:var(--fog);transition:transform .2s,background .2s}
+.switch input:checked + .tr{background:var(--tag);border-color:var(--tag)}
+.switch input:checked + .tr::after{transform:translateX(22px);background:var(--tag-ink)}
+.switch input:focus-visible + .tr{outline:3px solid var(--tag);outline-offset:3px}
+@media (max-width:980px){.tour{grid-template-columns:minmax(0,1fr);gap:40px}.stage{order:-1}.phone,.phone:hover{transform:none}}
+@media (prefers-reduced-motion:reduce){.phone{transition:none}}
+
+/* ===== balança (calculadora) ===== */
+.scale{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);border-radius:22px;overflow:hidden;background:var(--night);color:var(--hide);box-shadow:0 40px 70px -40px rgba(10,23,16,.9)}
+.scale form{padding:32px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-content:center;background:var(--night-2)}
+.field{display:flex;flex-direction:column;gap:7px;min-width:0}
+.field label{font-family:var(--mono);font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--fog)}
+.field input{font:700 30px/1 var(--display);color:var(--hide);background:var(--night);border:1.5px solid var(--night-line);border-radius:12px;padding:12px 14px;width:100%;min-height:58px;color-scheme:dark}
+.field input:focus{border-color:var(--tag);outline:none}
+.scale output{padding:32px;display:flex;flex-direction:column;gap:18px;justify-content:center;min-width:0}
+.scale .big{font-family:var(--display);font-weight:900;font-size:clamp(84px,13vw,168px);line-height:.8;color:var(--tag)}
+.scale .unit{font-family:var(--mono);font-size:14px;color:var(--fog);letter-spacing:.1em;text-transform:uppercase}
+.gauge{position:relative;height:14px;border-radius:999px;display:grid;grid-template-columns:33.333% 25% 41.667%;overflow:visible;margin-top:8px}
+.gauge span{height:100%}
+.gauge span:nth-child(1){background:#C9553F;border-radius:999px 0 0 999px}
+.gauge span:nth-child(2){background:#E0A234}
+.gauge span:nth-child(3){background:#46A05E;border-radius:0 999px 999px 0}
+.gauge i{position:absolute;top:-7px;width:6px;height:28px;border-radius:3px;background:var(--hide);box-shadow:0 0 0 3px var(--night);transform:translateX(-50%);transition:left .35s ease}
+.gauge-scale{display:flex;justify-content:space-between;font-family:var(--mono);font-size:11.5px;color:var(--fog)}
+.scale .line{color:var(--fog);font-size:16.5px}
+.scale .line b{color:var(--hide)}
+@media (max-width:860px){.scale{grid-template-columns:minmax(0,1fr)}.scale form,.scale output{padding:22px}}
+@media (prefers-reduced-motion:reduce){.gauge i{transition:none}}
+
+/* ===== mosaico de benefícios ===== */
+.bento{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:16px}
+.cell{border-radius:20px;padding:28px;display:flex;flex-direction:column;gap:12px;min-width:0;background:var(--night-2);border:1px solid var(--night-line);position:relative;overflow:hidden}
+.cell h3{font-weight:800;font-size:clamp(28px,3vw,38px)}
+.cell p{color:var(--fog);max-width:46ch}
+.cell .viz{margin-top:auto;padding-top:16px}
+.c-off{grid-column:span 4;background:linear-gradient(135deg,#1B3A26,var(--night-2) 70%)}
+.c-xl{grid-column:span 2;background:var(--straw);color:var(--ink);border-color:var(--straw)}
+.c-xl p{color:var(--ink-muted)}
+.c-san{grid-column:span 2}
+.c-hist{grid-column:span 4}
+.c-dev{grid-column:span 3;background:var(--earth-2);border-color:var(--earth-2)}
+.c-dev p{color:#F0D6C6}
+.c-pan{grid-column:span 3;background:var(--tag);color:var(--tag-ink);border-color:var(--tag)}
+.c-pan p{color:#4A3806}
+.queue{display:flex;flex-wrap:wrap;gap:8px;font-family:var(--mono);font-size:12.5px}
+.queue span{border:1px dashed rgba(247,243,231,.4);border-radius:8px;padding:6px 10px;color:var(--hide)}
+.queue span.sent{border-style:solid;border-color:var(--grass-3);color:#9BE0AE}
+.mini-sheet{display:grid;grid-template-columns:repeat(4,1fr);gap:3px}
+.mini-sheet i{height:15px;border-radius:2px;background:var(--straw-2)}
+.mini-sheet i.h{background:#1D6F42}
+.mini-sheet i.g{background:#A9D6AE}.mini-sheet i.a{background:#F1CE86}.mini-sheet i.b{background:#E9AFA3}
+.dose{font-family:var(--display);font-weight:800;font-size:clamp(26px,2.8vw,36px);line-height:1;display:flex;flex-wrap:wrap;gap:6px 10px;align-items:baseline;text-transform:uppercase}
+.dose em{font-style:normal;color:var(--tag)}
+.dose small{font-family:var(--mono);font-size:12px;font-weight:400;color:var(--fog);text-transform:none}
+.line-time{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0;position:relative}
+.line-time::before{content:"";position:absolute;left:6px;right:10%;top:6px;height:2px;background:var(--night-line)}
+.line-time div{display:flex;flex-direction:column;gap:4px;position:relative;padding-top:24px;min-width:0;padding-right:8px}
+.line-time div::before{content:"";position:absolute;top:0;left:0;width:14px;height:14px;border-radius:50%;background:var(--tag);box-shadow:0 0 0 4px var(--night-2)}
+.line-time b{font-family:var(--display);font-size:20px;font-weight:700;text-transform:uppercase;line-height:1}
+.line-time span{font-family:var(--mono);font-size:11.5px;color:var(--fog)}
+.bigstat{font-family:var(--display);font-weight:900;font-size:clamp(60px,8vw,104px);line-height:.82}
+.bigstat small{font-family:var(--mono);font-size:13px;font-weight:500;letter-spacing:.08em;margin-left:8px;text-transform:uppercase}
+.devs{display:flex;align-items:flex-end;gap:14px}
+.devs i{display:block;border:2px solid #F0D6C6;border-radius:8px}
+.devs i:nth-child(1){width:120px;height:76px}
+.devs i:nth-child(2){width:38px;height:66px;border-radius:9px}
+@media (max-width:900px){.bento{grid-template-columns:minmax(0,1fr)}.bento .cell{grid-column:auto}.line-time{grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 8px}.line-time::before{display:none}}
+
+/* ===== passos ===== */
+.steps3{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;counter-reset:p;border-top:2px solid var(--ink)}
+.steps3 li{counter-increment:p;padding:26px 28px 8px 0;display:flex;flex-direction:column;gap:10px;min-width:0}
+.steps3 li + li{padding-left:28px;border-left:1px solid var(--straw-line)}
+.steps3 li::before{content:"0" counter(p);font-family:var(--display);font-weight:900;font-size:96px;line-height:.8;color:transparent;-webkit-text-stroke:2px var(--earth)}
+.steps3 h3{font-weight:800;font-size:32px}
+.steps3 p{color:var(--ink-muted)}
+@media (max-width:800px){.steps3{grid-template-columns:minmax(0,1fr)}.steps3 li + li{padding-left:0;border-left:0;border-top:1px solid var(--straw-line)}}
+
+/* ===== planos ===== */
+.plans{display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);gap:20px;align-items:stretch}
+.plan{border-radius:26px;padding:44px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:40px;align-items:center;min-width:0}
+.plan-buy{display:flex;flex-direction:column;gap:18px;align-items:flex-start;min-width:0}
+.plan h3{font-weight:900;font-size:clamp(38px,4.4vw,56px)}
+.plan .for{color:var(--fog)}
+.plan ul{margin:0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 24px;font-weight:500}
+.plan li{padding-left:30px;position:relative}
+.plan li::before{content:"";position:absolute;left:3px;top:.4em;width:13px;height:7px;border-left:2.5px solid var(--grass-3);border-bottom:2.5px solid var(--grass-3);transform:rotate(-45deg)}
+.plan .btn{margin-top:6px}
+.price{font-family:var(--display);font-weight:900;font-size:clamp(54px,7vw,88px);line-height:.85;text-transform:uppercase}
+.price small{font-family:var(--mono);font-size:14px;font-weight:400;margin-left:8px;text-transform:none}
+.price-note{font-size:15px;color:var(--fog)}
+.plan.pro{background:var(--tag);color:var(--tag-ink);border-color:var(--tag);position:relative;overflow:hidden}
+.plan.pro::after{content:"LOTE CERTO";position:absolute;right:-18px;bottom:-34px;font-family:var(--display);font-weight:900;font-size:180px;line-height:1;color:transparent;-webkit-text-stroke:2px rgba(36,26,2,.14);pointer-events:none}
+.plan.pro > *{position:relative;z-index:1}
+.plan.pro .for,.plan.pro .price-note{color:#4A3806}
+.plan.pro li::before{border-color:var(--tag-ink)}
+.btn-dark{background:var(--tag-ink);color:var(--tag)}
+.btn-dark:hover{background:#000;transform:translateY(-2px)}
+.notice{margin-top:18px;padding:14px 18px;border-radius:12px;background:var(--night-3);border:1px dashed var(--tag);color:var(--hide);font-size:15.5px}
+@media (max-width:860px){.plan{grid-template-columns:minmax(0,1fr);padding:26px;gap:28px}.plan ul{grid-template-columns:minmax(0,1fr)}}
+.table-scroll{overflow-x:auto;margin-top:28px;border:1px solid var(--night-line);border-radius:18px;background:var(--night-2)}
+table{border-collapse:collapse;width:100%;min-width:540px;font-size:16px;color:var(--hide)}
+th,td{padding:13px 22px;text-align:left;border-top:1px solid var(--night-line)}
+thead th{border-top:0;font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--fog);font-weight:500}
+tbody th{font-weight:500}
+td{width:23%;font-weight:600}
+td.no{color:var(--fog);font-weight:400}
+td.yes{color:#8FD9A2}
+thead th:last-child,td:last-child{color:var(--tag)}
+
+/* ===== dúvidas ===== */
+.faq-grid{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);gap:48px;align-items:start}
+.faq-grid .sec-head{margin:0;position:sticky;top:110px}
+.faq details{border-top:1.5px solid var(--ink)}
+.faq details:last-child{border-bottom:1.5px solid var(--ink)}
+.faq summary{cursor:pointer;list-style:none;padding:22px 44px 22px 0;font-family:var(--display);font-size:clamp(24px,2.6vw,32px);font-weight:800;text-transform:uppercase;position:relative;line-height:1}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary::after{content:"+";position:absolute;right:0;top:12px;width:34px;height:34px;border-radius:50%;background:var(--ink);color:var(--straw);font-family:var(--body);font-size:24px;font-weight:400;line-height:32px;text-align:center}
+.faq details[open] summary::after{content:"\2212";background:var(--earth)}
+.faq details p{padding:0 0 24px;color:var(--ink-muted);max-width:60ch;font-size:17.5px}
+@media (max-width:900px){.faq-grid{grid-template-columns:minmax(0,1fr);gap:28px}.faq-grid .sec-head{position:static}}
+
+/* ===== fechamento ===== */
+.closing{background:radial-gradient(90% 120% at 50% 110%,#1F5A33 0%,var(--night) 65%);color:var(--hide);padding-block:110px;text-align:left;overflow:hidden}
+.closing .wrap{display:flex;flex-direction:column;gap:28px;align-items:flex-start}
+.closing h2{font-weight:900;font-size:clamp(52px,9.4vw,148px);line-height:.84}
+.closing h2 span{display:block}
+.closing h2 .o{color:transparent;-webkit-text-stroke:2px var(--hide)}
+.closing h2 .y{color:var(--tag)}
+.closing p{color:var(--fog);font-size:20px;max-width:50ch}
+.closing .cta{display:flex;flex-wrap:wrap;gap:12px}
+footer{background:var(--night);color:var(--fog);border-top:1px solid var(--night-line);font-family:var(--mono);font-size:12.5px}
+footer .wrap{padding-block:22px;display:flex;flex-wrap:wrap;gap:8px 24px;justify-content:space-between}
+@media (max-width:700px){.closing{padding-block:64px}}
+</style>
+
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#inicio" aria-label="Lote Certo, início">
+      <svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><rect x="1" y="1" width="30" height="30" rx="9" fill="var(--tag)"/><path d="M8 22V10M8 22h7M18 16.5l3 3.5 5-8" stroke="var(--tag-ink)" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Lote Certo
+    </a>
+    <nav aria-label="Seções">
+      <a href="#sistema">O sistema</a>
+      <a href="#balanca">Calcule o GMD</a>
+      <a href="#beneficios">Benefícios</a>
+      <a href="#planos">Assinatura</a>
+      <a href="#duvidas">Dúvidas</a>
+    </nav>
+    <a class="entrar" href="app/">Entrar</a>
+    <a class="btn btn-tag btn-sm" href="#planos">Assinar</a>
+  </div>
+</header>
+
+<main id="inicio">
+  <!-- ===== abertura ===== -->
+  <div class="hero">
+    <div class="hero-top">
+      <div class="map" id="mapa">
+        <canvas id="mapa-canvas" aria-hidden="true"></canvas>
+        <div class="map-legend"><i></i>1 ponto = 1 cabeça</div>
+      </div>
+      <div class="wrap">
+        <div class="hero-text">
+          <p class="kicker">Controle de gado de corte por lote</p>
+          <h1><span>Seu gado,</span><span class="o">lote por lote,</span><span class="y">quilo por quilo.</span></h1>
+          <p class="sub">Lance a pesagem pelo celular, mesmo sem sinal. O Lote Certo calcula o ganho de peso, guarda a sanidade e monta a planilha Excel para você.</p>
+          <div class="cta">
+            <a class="btn btn-tag" href="#planos" data-link="premium">Assinar agora <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+            <a class="btn btn-ghost" href="#sistema">Ver o sistema por dentro</a>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="hud" aria-live="polite">
+      <div class="wrap">
+        <div class="hud-cell"><span class="k">Pasto selecionado · toque em outro</span><span class="v" id="h-nome">Lote 07</span><span class="s" id="h-desc">Nelore · machos</span></div>
+        <div class="hud-cell"><span class="k">Cabeças</span><span class="v mono" id="h-cab">84</span></div>
+        <div class="hud-cell"><span class="k">Pesagem anterior</span><span class="v" id="h-ant">312<small>kg</small></span></div>
+        <div class="hud-cell"><span class="k">Pesagem de hoje</span><span class="v" id="h-atu">361<small>kg</small></span></div>
+        <div class="hud-cell"><span class="k">Intervalo</span><span class="v" id="h-dias">60<small>dias</small></span></div>
+        <div class="hud-cell hud-gmd"><span class="k">Ganho médio diário</span><div class="row"><span class="v" id="h-gmd">0,817</span><span class="chip bom" id="h-chip">Ganho bom</span></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ticker" aria-hidden="true">
+    <div class="ticker-track">
+      <span>Pesagem</span><span>GMD automático</span><span>Sanidade</span><span>Funciona sem internet</span><span>Entrada e saída</span><span>Planilha Excel</span>
+      <span>Pesagem</span><span>GMD automático</span><span>Sanidade</span><span>Funciona sem internet</span><span>Entrada e saída</span><span>Planilha Excel</span>
+    </div>
+  </div>
+
+  <!-- ===== caderno x sistema ===== -->
+  <section class="sec straw">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="kicker">O problema</p>
+        <h2>A pesagem foi feita. <em>O número ficou onde?</em></h2>
+        <p>No caderno, o dado existe, mas não está à mão na hora de decidir. E a conta do ganho de peso fica para depois, quando sobra tempo.</p>
+      </div>
+      <div class="duel">
+        <div>
+          <p class="note-cap">Do jeito de hoje</p>
+          <div class="note">
+            Lote 7 · pesou 361 <span class="q">(ou 351?)</span><br>
+            última pesagem: <s>ver caderno velho</s><br>
+            ganho = 49 ÷ 60 = <s>0,71</s> <span class="q">0,8 e pouco</span><br>
+            vacina: acho que foi em agosto<br>
+            passar pro Excel no domingo <span class="q">!!!</span>
+          </div>
+        </div>
+        <div class="duel-arrow" aria-hidden="true">→</div>
+        <div>
+          <p class="sys-cap">Com o Lote Certo</p>
+          <div class="sys">
+            <div class="sys-head"><b>Lote 07 · Nelore</b><span class="chip bom">Ganho bom</span></div>
+            <div class="sys-num">0,817<small>kg por dia</small></div>
+            <div class="sys-rows">
+              <div><span class="k">Pesagem de hoje</span><span class="v">361 kg, lançada no curral</span></div>
+              <div><span class="k">Pesagem anterior</span><span class="v">312 kg, há 60 dias</span></div>
+              <div><span class="k">Última sanidade</span><span class="v">14/08 · vermífugo · 5 ml</span></div>
+              <div><span class="k">Planilha Excel</span><span class="v">Pronta, em um botão</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== telas do sistema ===== -->
+  <section class="sec night" id="sistema">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="kicker">O sistema</p>
+        <h2>Quatro telas. <em>O manejo inteiro.</em></h2>
+        <p>Toque em cada uma para ver como fica no celular.</p>
+      </div>
+      <div class="tour">
+        <div class="tour-tabs" role="tablist" aria-label="Telas do sistema">
+          <button class="tour-tab" role="tab" id="t-painel" aria-controls="s-painel" aria-selected="true"><span class="n">01</span><span class="t">Painel</span><span class="d">Cabeças ativas, lotes ativos e peso médio de todo o gado logo na primeira tela.</span></button>
+          <button class="tour-tab" role="tab" id="t-pesagem" aria-controls="s-pesagem" aria-selected="false" tabindex="-1"><span class="n">02</span><span class="t">Pesagem</span><span class="d">Informe o peso médio do lote. O ganho por dia sai na hora, comparado com a pesagem anterior ou com a entrada.</span></button>
+          <button class="tour-tab" role="tab" id="t-sanidade" aria-controls="s-sanidade" aria-selected="false" tabindex="-1"><span class="n">03</span><span class="t">Sanidade</span><span class="d">Lote, data, produto e dose em ml. O total aplicado no lote é calculado sozinho.</span></button>
+          <button class="tour-tab" role="tab" id="t-planilha" aria-controls="s-planilha" aria-selected="false" tabindex="-1"><span class="n">04</span><span class="t">Planilha</span><span class="d">Um botão baixa tudo em Excel: resumo, lotes, entradas, saídas, pesagens e sanidade, já com cores, filtros e totais.</span></button>
+        </div>
+        <div class="stage">
+          <div class="phone">
+            <div class="screen">
+              <div class="ph-top">
+                <div><small>Fazenda</small><b>Boa Vista</b></div>
+                <span class="ph-sync" id="ph-sync"><i></i><span id="ph-sync-t">Sincronizado</span></span>
+              </div>
+              <div class="ph-body" role="tabpanel" id="s-painel" aria-labelledby="t-painel">
+                <div class="ph-kpis">
+                  <div class="ph-card"><span class="ph-label">Cabeças</span><b>340</b></div>
+                  <div class="ph-card"><span class="ph-label">Lotes</span><b>5</b></div>
+                  <div class="ph-card"><span class="ph-label">Peso médio</span><b>351<small> kg</small></b></div>
+                </div>
+                <span class="ph-label">Lotes ativos</span>
+                <div class="ph-card ph-lot"><div><b>Lote 03</b><span>48 cab · cruzado · 452 kg</span></div><span class="chip bom">0,871</span></div>
+                <div class="ph-card ph-lot"><div><b>Lote 07</b><span>84 cab · Nelore · 361 kg</span></div><span class="chip bom">0,817</span></div>
+                <div class="ph-card ph-lot"><div><b>Lote 12</b><span>62 cab · Nelore · 279 kg</span></div><span class="chip regular">0,554</span></div>
+                <div class="ph-card ph-lot"><div><b>Lote 09</b><span>110 cab · Nelore · 303 kg</span></div><span class="chip baixo">0,310</span></div>
+              </div>
+              <div class="ph-body" role="tabpanel" id="s-pesagem" aria-labelledby="t-pesagem" hidden>
+                <div class="ph-field"><span class="ph-label">Lote</span><div class="ph-input">Lote 07 · Nelore<span>▾</span></div></div>
+                <div class="ph-field"><span class="ph-label">Peso médio por animal</span><div class="ph-input on">361 kg</div></div>
+                <div class="ph-field"><span class="ph-label">Data da pesagem</span><div class="ph-input">11/11/2026</div></div>
+                <div class="ph-result"><span>Ganho médio diário</span><b>0,817<small>kg por dia</small></b><span>49 kg em 60 dias, desde a pesagem de 312 kg</span></div>
+                <div class="ph-btn">Salvar pesagem</div>
+              </div>
+              <div class="ph-body" role="tabpanel" id="s-sanidade" aria-labelledby="t-sanidade" hidden>
+                <div class="ph-field"><span class="ph-label">Lote</span><div class="ph-input">Lote 07 · 84 cabeças<span>▾</span></div></div>
+                <div class="ph-field"><span class="ph-label">Produto</span><div class="ph-input">Vermífugo</div></div>
+                <div class="ph-field"><span class="ph-label">Dose por animal</span><div class="ph-input on">5 ml</div></div>
+                <div class="ph-result"><span>Total para o lote</span><b>420<small>ml</small></b><span>5 ml × 84 cabeças</span></div>
+                <div class="ph-btn">Salvar aplicação</div>
+              </div>
+              <div class="ph-body" role="tabpanel" id="s-planilha" aria-labelledby="t-planilha" hidden>
+                <div class="ph-btn xl">Baixar planilha Excel</div>
+                <div class="ph-tabs"><span>Pesagens</span><span>Resumo</span><span>Lotes</span><span>Sanidade</span></div>
+                <div class="ph-sheet">
+                  <div class="r"><span>Lote</span><span>Data</span><span>Peso</span><span>GMD</span></div>
+                  <div class="r"><span>Lote 03</span><span>11/11</span><span>452</span><span class="g">0,871</span></div>
+                  <div class="r"><span>Lote 07</span><span>11/11</span><span>361</span><span class="g">0,817</span></div>
+                  <div class="r"><span>Lote 15</span><span>09/11</span><span>463</span><span class="g">0,782</span></div>
+                  <div class="r"><span>Lote 12</span><span>08/11</span><span>279</span><span class="a">0,554</span></div>
+                  <div class="r"><span>Lote 09</span><span>06/11</span><span>303</span><span class="b">0,310</span></div>
+                  <div class="r"><span>Lote 07</span><span>12/09</span><span>312</span><span class="g">0,742</span></div>
+                  <div class="r"><span>Lote 03</span><span>10/09</span><span>398</span><span class="g">0,806</span></div>
+                </div>
+                <span class="ph-label">Todas as abas vêm preenchidas</span>
+              </div>
+            </div>
+          </div>
+          <label class="switch" for="sw-off"><input type="checkbox" id="sw-off"><span class="tr"></span><span>Simular o curral sem internet</span></label>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== balança ===== -->
+  <section class="sec straw" id="balanca">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="kicker">Experimente agora</p>
+        <h2>Ponha um lote seu <em>na balança.</em></h2>
+        <p>Esta é a conta que o Lote Certo faz a cada pesagem. Troque os números pelos do seu gado.</p>
+      </div>
+      <div class="scale">
+        <form id="calc-form" novalidate>
+          <div class="field"><label for="c-ant">Peso anterior (kg)</label><input id="c-ant" inputmode="decimal" value="312"></div>
+          <div class="field"><label for="c-atu">Peso de hoje (kg)</label><input id="c-atu" inputmode="decimal" value="361"></div>
+          <div class="field"><label for="c-dias">Dias entre pesagens</label><input id="c-dias" inputmode="numeric" value="60"></div>
+          <div class="field"><label for="c-cab">Cabeças no lote</label><input id="c-cab" inputmode="numeric" value="84"></div>
+        </form>
+        <output for="c-ant c-atu c-dias c-cab" aria-live="polite">
+          <span class="unit">Ganho médio diário · kg por dia</span>
+          <span class="big" id="c-gmd">0,817</span>
+          <div>
+            <div class="gauge" aria-hidden="true"><span></span><span></span><span></span><i id="c-mark" style="left:68%"></i></div>
+            <div class="gauge-scale" aria-hidden="true"><span>0</span><span>0,400</span><span>0,700</span><span>1,200</span></div>
+          </div>
+          <span class="chip bom" id="c-chip" style="align-self:flex-start">Ganho bom</span>
+          <span class="line" id="c-l1">Cada animal ganhou <b>49 kg</b> em 60 dias.</span>
+          <span class="line" id="c-l2">O lote inteiro ganhou <b>4.116 kg</b> de peso vivo.</span>
+        </output>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== benefícios ===== -->
+  <section class="sec night" id="beneficios">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="kicker">Benefícios</p>
+        <h2>O que muda <em>na sua lida.</em></h2>
+      </div>
+      <div class="bento">
+        <div class="cell c-off">
+          <h3>Funciona onde o sinal não chega</h3>
+          <p>No curral quase nunca tem internet. Você lança tudo normalmente e o sistema envia sozinho quando o celular voltar a ter conexão.</p>
+          <div class="viz queue"><span class="sent">Entrada · Lote 15 · enviada</span><span>Pesagem · Lote 07 · guardada</span><span>Vermífugo · Lote 07 · guardada</span></div>
+        </div>
+        <div class="cell c-xl">
+          <h3>Excel sem digitar</h3>
+          <p>A planilha completa sai pronta, com cores, filtros e totais.</p>
+          <div class="viz mini-sheet" aria-hidden="true"><i class="h"></i><i class="h"></i><i class="h"></i><i class="h"></i><i></i><i></i><i></i><i class="g"></i><i></i><i></i><i></i><i class="g"></i><i></i><i></i><i></i><i class="a"></i><i></i><i></i><i></i><i class="b"></i></div>
+        </div>
+        <div class="cell c-san">
+          <h3>Sanidade sem achismo</h3>
+          <p>Cada aplicação fica no histórico do lote.</p>
+          <div class="viz dose"><span>5 ml</span><small>×</small><span>84 cab</span><small>=</small><em>420 ml</em></div>
+        </div>
+        <div class="cell c-hist">
+          <h3>A vida do lote em uma linha</h3>
+          <p>Um toque no lote abre tudo o que aconteceu com ele, da chegada à venda.</p>
+          <div class="viz line-time">
+            <div><b>Entrada</b><span>14/07 · 268 kg</span></div>
+            <div><b>Vermífugo</b><span>14/08 · 5 ml</span></div>
+            <div><b>Pesagem</b><span>12/09 · 312 kg</span></div>
+            <div><b>Pesagem</b><span>11/11 · 361 kg</span></div>
+            <div><b>Saída</b><span>lote inteiro</span></div>
+          </div>
+        </div>
+        <div class="cell c-dev">
+          <h3>Celular e computador</h3>
+          <p>Abre no navegador, sem instalar nada pela loja. No celular, o ícone vai para a tela inicial e funciona como aplicativo.</p>
+          <div class="viz devs" aria-hidden="true"><i></i><i></i></div>
+        </div>
+        <div class="cell c-pan">
+          <h3>O rebanho em um número</h3>
+          <p>Cabeças ativas, lotes ativos e peso médio de todo o gado, sempre atualizados.</p>
+          <div class="viz bigstat"><span id="b-cab">340</span><small>cabeças no exemplo acima</small></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== como funciona ===== -->
+  <section class="sec straw" id="como-funciona">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="kicker">Como funciona</p>
+        <h2>Da chegada do gado <em>à venda do lote.</em></h2>
+      </div>
+      <ol class="steps3">
+        <li><h3>Cadastre o lote na entrada</h3><p>Quantidade, sexo, idade, raça, peso médio e data. Leva menos de um minuto.</p></li>
+        <li><h3>Lance pesagens e manejos</h3><p>A cada passagem pelo curral, informe o peso médio e o que foi aplicado. Pode ser sem internet.</p></li>
+        <li><h3>Acompanhe e dê a saída</h3><p>Veja o ganho de cada lote, baixe a planilha quando precisar e registre a saída quando o lote for vendido.</p></li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- ===== planos ===== -->
+  <section class="sec night" id="planos">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="kicker">Assinatura</p>
+        <h2>Um plano só. <em>O sistema inteiro.</em></h2>
+        <p>Sem versão limitada e sem recurso travado. Quem assina usa tudo.</p>
+      </div>
+      <div class="plan pro">
+        <div class="plan-buy">
+          <h3>Lote Certo completo</h3>
+          <p class="for">Para quem vive do gado e quer o controle na mão.</p>
+          <div class="price" id="preco">Valor a definir</div>
+          <p class="price-note" id="preco-nota">O preço da assinatura aparece aqui.</p>
+          <a class="btn btn-dark" href="#planos" data-link="premium">Assinar agora <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+        </div>
+        <ul>
+          <li>Lotes ativos sem limite</li>
+          <li>Várias fazendas na mesma conta</li>
+          <li>Entrada, saída e histórico de cada lote</li>
+          <li>Pesagem com GMD automático</li>
+          <li>Controle de sanidade com total aplicado</li>
+          <li>Painel do rebanho</li>
+          <li>Planilha Excel completa em um botão</li>
+          <li>Funciona sem internet</li>
+          <li>Celular e computador</li>
+          <li>Acesso para sócio ou funcionário</li>
+        </ul>
+      </div>
+      <p class="notice" id="aviso" hidden>Este botão ainda não leva a lugar nenhum. O link entra aqui quando a plataforma de compra for definida.</p>
+    </div>
+  </section>
+
+  <!-- ===== dúvidas ===== -->
+  <section class="sec straw" id="duvidas">
+    <div class="wrap faq-grid">
+      <div class="sec-head">
+        <p class="kicker">Dúvidas</p>
+        <h2>Antes de <em>decidir.</em></h2>
+      </div>
+      <div class="faq">
+        <details open>
+          <summary>Funciona mesmo sem internet?</summary>
+          <p>Sim. Depois do primeiro acesso, o sistema abre e aceita lançamentos sem conexão. Tudo fica guardado no aparelho e é enviado sozinho quando a internet voltar.</p>
+        </details>
+        <details>
+          <summary>Preciso instalar algum aplicativo?</summary>
+          <p>Não. O Lote Certo abre no navegador do celular ou do computador. No celular você pode adicionar o ícone à tela inicial e usar como um aplicativo.</p>
+        </details>
+        <details>
+          <summary>Já uso Excel. Vou perder minha planilha?</summary>
+          <p>Não. O sistema gera a planilha Excel completa sempre que você quiser, com todas as abas preenchidas. Você continua tendo o arquivo, só não precisa mais digitar nele.</p>
+        </details>
+        <details>
+          <summary>O controle é por animal ou por lote?</summary>
+          <p>Por lote. Você trabalha com a quantidade de cabeças e o peso médio do lote. O sistema não faz controle individual por brinco e não tem módulo financeiro.</p>
+        </details>
+        <details>
+          <summary>Quem vê os dados da minha fazenda?</summary>
+          <p>Só você e as pessoas que você autorizar. Cada conta enxerga apenas as próprias fazendas.</p>
+        </details>
+        <details>
+          <summary>Como é feito o pagamento?</summary>
+          <p>A assinatura é paga em uma página segura de pagamento, aberta ao tocar em Assinar. O acesso é liberado na sua conta depois da confirmação.</p>
+        </details>
+        <details>
+          <summary>Posso cancelar? E os meus dados?</summary>
+          <p>Pode cancelar quando quiser. Nos primeiros 7 dias você pode desistir e receber o valor de volta.</p>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <section class="closing">
+    <div class="wrap">
+      <h2><span>Na próxima pesagem,</span><span class="o">saia do curral</span><span class="y">com o número na mão.</span></h2>
+      <p>Assine, cadastre seus lotes e tenha o ganho de peso de cada um sempre à mão.</p>
+      <div class="cta">
+        <a class="btn btn-tag" href="#planos" data-link="premium">Assinar agora <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+        <a class="btn btn-ghost" href="#sistema">Ver o sistema por dentro</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>Lote Certo · controle de gado de corte por lote</span>
+    <span>Os lotes e números desta página são exemplos · <a href="app/">Já sou assinante</a></span>
+  </div>
+</footer>
+
+<script>
+/* ===== EM ABERTO: preencher quando o preço e a plataforma de compra forem definidos ===== */
+var LINKS = {
+  premium: ""    // endereço da página de compra da assinatura
+};
+var PRECO = {
+  valor:  "",    // exemplo: "R$ 00"
+  sufixo: "",    // exemplo: "por mês"
+  nota:   ""     // exemplo: "Cancele quando quiser."
+};
+
+(function () {
+  "use strict";
+  var reduz = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function fmt(n, casas) { return n.toLocaleString("pt-BR", { minimumFractionDigits: casas, maximumFractionDigits: casas }); }
+  function faixa(g) { return g >= 0.7 ? ["bom", "Ganho bom"] : g >= 0.4 ? ["regular", "Ganho regular"] : ["baixo", g < 0 ? "O lote perdeu peso" : "Ganho baixo"]; }
+
+  /* ---------- links e preço ---------- */
+  var aviso = document.getElementById("aviso");
+  document.querySelectorAll("[data-link]").forEach(function (a) {
+    var url = LINKS[a.dataset.link];
+    if (url) { a.href = url; a.target = "_blank"; a.rel = "noopener"; }
+  });
+  document.querySelectorAll(".plan [data-link]").forEach(function (a) {
+    a.addEventListener("click", function (e) { if (!LINKS[a.dataset.link]) { e.preventDefault(); aviso.hidden = false; } });
+  });
+  if (PRECO.valor) {
+    document.getElementById("preco").innerHTML = PRECO.valor + (PRECO.sufixo ? "<small>" + PRECO.sufixo + "</small>" : "");
+    document.getElementById("preco-nota").textContent = PRECO.nota || "";
+  }
+
+  /* ---------- fazenda vista de cima ---------- */
+  var LOTES = [
+    { n: "07", raca: "Nelore · machos",   cab: 84,  ant: 312, atu: 361, dias: 60, poly: [[.05,.09],[.48,.05],[.52,.40],[.08,.45]] },
+    { n: "12", raca: "Nelore · fêmeas",   cab: 62,  ant: 248, atu: 279, dias: 56, poly: [[.57,.06],[.95,.11],[.93,.44],[.60,.40]] },
+    { n: "03", raca: "Cruzado · machos",  cab: 48,  ant: 398, atu: 452, dias: 62, poly: [[.07,.54],[.35,.51],[.39,.92],[.10,.94]] },
+    { n: "09", raca: "Nelore · machos",   cab: 110, ant: 285, atu: 303, dias: 58, poly: [[.45,.49],[.92,.52],[.90,.71],[.47,.70]] },
+    { n: "15", raca: "Tabapuã · machos",  cab: 36,  ant: 420, atu: 463, dias: 55, poly: [[.48,.77],[.89,.78],[.86,.95],[.50,.94]] }
+  ];
+  var HULL = [[.02,.05],[.50,.005],[.985,.075],[.95,.985],[.06,.985]];
+  var VERDES = ["#2C7A44", "#256B3B", "#318449", "#2A7341", "#23633A"];
+  var sel = 0;
+  var seed = 7;
+  function rnd() { seed |= 0; seed = seed + 0x6D2B79F5 | 0; var t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }
+  function gauss() { return (rnd() + rnd() + rnd() + rnd() - 2) / 2; }
+  function dentro(p, poly) {
+    var c = false;
+    for (var i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      var a = poly[i], b = poly[j];
+      if ((a[1] > p[1]) !== (b[1] > p[1]) && p[0] < (b[0] - a[0]) * (p[1] - a[1]) / (b[1] - a[1]) + a[0]) c = !c;
+    }
+    return c;
+  }
+  function centro(poly) { var x = 0, y = 0; poly.forEach(function (p) { x += p[0]; y += p[1]; }); return [x / poly.length, y / poly.length]; }
+  function encolhe(poly, f) { var c = centro(poly); return poly.map(function (p) { return [c[0] + (p[0] - c[0]) * f, c[1] + (p[1] - c[1]) * f]; }); }
+
+  LOTES.forEach(function (l) {
+    l.gmd = (l.atu - l.ant) / l.dias;
+    l.c = centro(l.poly);
+    l.inner = encolhe(l.poly, 0.9);
+    l.core = encolhe(l.poly, 0.55);
+    var k = Math.max(2, Math.round(l.cab / 28));
+    l.grupos = [];
+    for (var i = 0; i < k; i++) {
+      var g; do { g = [l.c[0] + gauss() * .3, l.c[1] + gauss() * .3]; } while (!dentro(g, l.core));
+      l.grupos.push({ p: g, a: rnd() * 6.283 });
+    }
+    l.bois = [];
+    for (var j = 0; j < l.cab; j++) {
+      var gi = j % k, off, pos, t = 0;
+      do { off = [gauss() * .11, gauss() * .11]; pos = [l.grupos[gi].p[0] + off[0], l.grupos[gi].p[1] + off[1]]; t++; } while (!dentro(pos, l.inner) && t < 40);
+      if (!dentro(pos, l.inner)) { off = [0, 0]; pos = l.grupos[gi].p.slice(); }
+      l.bois.push({ g: gi, off: off, p: pos, f: rnd() * 6.283 });
+    }
+  });
+
+  var mapa = document.getElementById("mapa"), cv = document.getElementById("mapa-canvas"), ctx = cv.getContext("2d");
+  var W = 0, H = 0, tags = [];
+  LOTES.forEach(function (l, i) {
+    var b = document.createElement("button");
+    b.type = "button"; b.className = "map-tag";
+    b.style.left = (l.c[0] * 100) + "%"; b.style.top = (l.c[1] * 100) + "%";
+    b.innerHTML = "<b>" + l.n + "</b>" + fmt(l.gmd, 3);
+    b.setAttribute("aria-label", "Lote " + l.n + ", " + l.cab + " cabeças, ganho de " + fmt(l.gmd, 3) + " kg por dia");
+    b.addEventListener("click", function () { escolher(i); });
+    mapa.appendChild(b); tags.push(b);
+  });
+
+  var tweenId = 0;
+  function escolher(i) {
+    sel = i;
+    var l = LOTES[i], f = faixa(l.gmd);
+    tags.forEach(function (b, k) { b.setAttribute("aria-pressed", k === i ? "true" : "false"); });
+    document.getElementById("h-nome").textContent = "Lote " + l.n;
+    document.getElementById("h-desc").textContent = l.raca;
+    document.getElementById("h-cab").textContent = l.cab;
+    document.getElementById("h-ant").innerHTML = l.ant + "<small>kg</small>";
+    document.getElementById("h-atu").innerHTML = l.atu + "<small>kg</small>";
+    document.getElementById("h-dias").innerHTML = l.dias + "<small>dias</small>";
+    var chip = document.getElementById("h-chip"); chip.className = "chip " + f[0]; chip.textContent = f[1];
+    var el = document.getElementById("h-gmd"), id = ++tweenId, t0 = performance.now();
+    if (reduz) { el.textContent = fmt(l.gmd, 3); }
+    else (function passo(now) {
+      if (id !== tweenId) return;
+      var k = Math.min(1, (now - t0) / 450), e = 1 - Math.pow(1 - k, 3);
+      el.textContent = fmt(l.gmd * e, 3);
+      if (k < 1) requestAnimationFrame(passo);
+    })(t0);
+    if (!rodando) desenhar();
+  }
+
+  function medir() {
+    var r = mapa.getBoundingClientRect(), d = Math.min(2, window.devicePixelRatio || 1);
+    W = Math.max(1, r.width); H = Math.max(1, r.height);
+    cv.width = Math.round(W * d); cv.height = Math.round(H * d);
+    ctx.setTransform(d, 0, 0, d, 0, 0);
+  }
+  function caminho(poly) { ctx.beginPath(); poly.forEach(function (p, i) { if (i) ctx.lineTo(p[0] * W, p[1] * H); else ctx.moveTo(p[0] * W, p[1] * H); }); ctx.closePath(); }
+  function desenhar() {
+    ctx.clearRect(0, 0, W, H);
+    /* estradas de terra vermelha */
+    caminho(HULL); ctx.fillStyle = "#7A3F24"; ctx.fill();
+    ctx.lineJoin = "round";
+    LOTES.forEach(function (l, i) {
+      caminho(l.poly);
+      ctx.fillStyle = i === sel ? "#3A9455" : VERDES[i]; ctx.fill();
+      /* faixas de pastejo */
+      ctx.save(); ctx.clip();
+      ctx.strokeStyle = "rgba(10,23,16,.13)"; ctx.lineWidth = 7;
+      for (var x = -H; x < W + H; x += 22) { ctx.beginPath(); ctx.moveTo(x + i * 5, 0); ctx.lineTo(x + i * 5 + H * (i % 2 ? .5 : -.35), H); ctx.stroke(); }
+      ctx.restore();
+      /* cerca */
+      caminho(l.poly);
+      ctx.setLineDash(i === sel ? [] : [2, 6]);
+      ctx.strokeStyle = i === sel ? "#F4B92F" : "rgba(247,243,231,.55)";
+      ctx.lineWidth = i === sel ? 3 : 1.6; ctx.stroke(); ctx.setLineDash([]);
+    });
+    /* curral */
+    var cx = .425 * W, cy = .47 * H, cr = Math.max(7, Math.min(W, H) * .022);
+    ctx.beginPath(); ctx.arc(cx, cy, cr, 0, 6.2832); ctx.fillStyle = "#5A2E1A"; ctx.fill();
+    ctx.strokeStyle = "rgba(247,243,231,.8)"; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.font = "500 10px 'IBM Plex Mono',monospace"; ctx.fillStyle = "rgba(247,243,231,.85)"; ctx.textAlign = "center"; ctx.fillText("curral", cx, cy + cr + 12);
+    /* o gado: cada ponto é uma cabeça */
+    var r = Math.max(1.7, Math.min(W, H) * .0052);
+    LOTES.forEach(function (l) {
+      ctx.fillStyle = "rgba(10,23,16,.35)";
+      ctx.beginPath(); l.bois.forEach(function (b) { ctx.moveTo(b.p[0] * W + 1.2 + r, b.p[1] * H + 1.6); ctx.arc(b.p[0] * W + 1.2, b.p[1] * H + 1.6, r, 0, 6.2832); }); ctx.fill();
+      ctx.fillStyle = "#F7F3E7";
+      ctx.beginPath(); l.bois.forEach(function (b) { ctx.moveTo(b.p[0] * W + r, b.p[1] * H); ctx.arc(b.p[0] * W, b.p[1] * H, r, 0, 6.2832); }); ctx.fill();
+    });
+  }
+  function mover(dt, t) {
+    LOTES.forEach(function (l) {
+      l.grupos.forEach(function (g) {
+        g.a += (rnd() - .5) * 1.2 * dt;
+        var nx = g.p[0] + Math.cos(g.a) * .011 * dt, ny = g.p[1] + Math.sin(g.a) * .011 * dt;
+        if (dentro([nx, ny], l.core)) { g.p[0] = nx; g.p[1] = ny; } else { g.a += 2.2; }
+      });
+      l.bois.forEach(function (b) {
+        var g = l.grupos[b.g];
+        var tx = g.p[0] + b.off[0] + Math.cos(t * .35 + b.f) * .008, ty = g.p[1] + b.off[1] + Math.sin(t * .28 + b.f * 1.7) * .008;
+        var nx = b.p[0] + (tx - b.p[0]) * Math.min(1, dt * .8), ny = b.p[1] + (ty - b.p[1]) * Math.min(1, dt * .8);
+        if (dentro([nx, ny], l.inner)) { b.p[0] = nx; b.p[1] = ny; }
+      });
+    });
+  }
+  var rodando = false, visivel = true, ultimo = 0;
+  function quadro(now) {
+    if (!rodando) return;
+    var dt = Math.min(.05, (now - ultimo) / 1000); ultimo = now;
+    mover(dt, now / 1000); desenhar();
+    requestAnimationFrame(quadro);
+  }
+  function ligar() { if (reduz || rodando || !visivel || document.hidden) return; rodando = true; ultimo = performance.now(); requestAnimationFrame(quadro); }
+  function desligar() { rodando = false; }
+  cv.addEventListener("click", function (e) {
+    var r = cv.getBoundingClientRect(), p = [(e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height];
+    for (var i = 0; i < LOTES.length; i++) if (dentro(p, LOTES[i].poly)) { escolher(i); break; }
+  });
+  window.addEventListener("resize", function () { medir(); desenhar(); });
+  document.addEventListener("visibilitychange", function () { if (document.hidden) desligar(); else ligar(); });
+  if ("IntersectionObserver" in window) new IntersectionObserver(function (es) { visivel = es[0].isIntersecting; if (visivel) ligar(); else desligar(); }).observe(mapa);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { if (!rodando) desenhar(); });
+  medir(); tags[0].setAttribute("aria-pressed", "true"); desenhar(); ligar();
+
+  var totCab = LOTES.reduce(function (s, l) { return s + l.cab; }, 0);
+  document.getElementById("b-cab").textContent = totCab;
+
+  /* ---------- telas do sistema ---------- */
+  var abas = Array.prototype.slice.call(document.querySelectorAll(".tour-tab"));
+  function abrir(i, foco) {
+    abas.forEach(function (b, k) {
+      var on = k === i;
+      b.setAttribute("aria-selected", on ? "true" : "false"); b.tabIndex = on ? 0 : -1;
+      document.getElementById(b.getAttribute("aria-controls")).hidden = !on;
+    });
+    if (foco) abas[i].focus();
+  }
+  abas.forEach(function (b, i) {
+    b.addEventListener("click", function () { abrir(i); });
+    b.addEventListener("keydown", function (e) {
+      if (e.key === "ArrowDown" || e.key === "ArrowRight") { e.preventDefault(); abrir((i + 1) % abas.length, true); }
+      if (e.key === "ArrowUp" || e.key === "ArrowLeft") { e.preventDefault(); abrir((i + abas.length - 1) % abas.length, true); }
+    });
+  });
+  var sw = document.getElementById("sw-off");
+  function sinal() {
+    document.getElementById("ph-sync").classList.toggle("off", sw.checked);
+    document.getElementById("ph-sync-t").textContent = sw.checked ? "Sem internet · 2 guardadas" : "Sincronizado";
+  }
+  sw.addEventListener("change", sinal); sinal();
+
+  /* ---------- balança ---------- */
+  function num(id) { return parseFloat(String(document.getElementById(id).value).replace(/\./g, "").replace(",", ".")); }
+  function calcular() {
+    var ant = num("c-ant"), atu = num("c-atu"), dias = num("c-dias"), cab = num("c-cab");
+    var gmdEl = document.getElementById("c-gmd"), chip = document.getElementById("c-chip"), mark = document.getElementById("c-mark");
+    var l1 = document.getElementById("c-l1"), l2 = document.getElementById("c-l2");
+    if (!(ant > 0) || !(atu > 0) || !(dias > 0)) {
+      gmdEl.textContent = "0,000"; mark.style.left = "0%";
+      chip.className = "chip regular"; chip.textContent = "Preencha os pesos e os dias";
+      l1.textContent = ""; l2.textContent = ""; return;
+    }
+    var ganho = atu - ant, gmd = ganho / dias, f = faixa(gmd);
+    gmdEl.textContent = fmt(gmd, 3);
+    mark.style.left = (Math.max(0, Math.min(1.2, gmd)) / 1.2 * 100) + "%";
+    chip.className = "chip " + f[0]; chip.textContent = f[1];
+    var verbo = ganho < 0 ? "perdeu" : "ganhou";
+    l1.innerHTML = "Cada animal " + verbo + " <b>" + fmt(Math.abs(ganho), 0) + " kg</b> em " + fmt(dias, 0) + " dias.";
+    l2.innerHTML = cab > 0 ? "O lote inteiro " + verbo + " <b>" + fmt(Math.abs(ganho) * cab, 0) + " kg</b> de peso vivo." : "";
+  }
+  document.getElementById("calc-form").addEventListener("input", calcular);
+  document.getElementById("calc-form").addEventListener("submit", function (e) { e.preventDefault(); });
+  calcular();
+})();
+</script>
+</body></html>
