@@ -211,7 +211,7 @@ document.addEventListener("click", async (e) => {
     b.disabled = true;
     try {
       const { baixarPlanilha } = await import("./excel.js");
-      baixarPlanilha(S.db);
+      await baixarPlanilha(S.db);
       toast("Planilha gerada com todos os dados do sistema.");
     } catch (err) {
       toast("Não foi possível gerar a planilha: " + err.message);

@@ -8,8 +8,8 @@
     "dev": "node build.mjs --serve"
   },
   "dependencies": {
-    "firebase": "^10.14.1",
-    "xlsx": "0.18.5"
+    "exceljs": "^4.4.0",
+    "firebase": "^10.14.1"
   },
   "devDependencies": {
     "@fontsource/barlow": "^5.3.0",
