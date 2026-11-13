@@ -23,22 +23,22 @@ async function token(email){const r=await fetch('http://127.0.0.1:9099/identityt
  await A.waitForSelector('#faz1',{timeout:10000});ok(true,'liberação aparece sozinha na tela do cliente');
  await A.fill('#faz1','Fazenda Santa Rita');await A.click('text=Começar a usar');
  await A.waitForSelector('.app');await A.waitForFunction(()=>document.querySelector('#fazNome')?.textContent==='Fazenda Santa Rita');ok(true,'primeira fazenda criada');
- await A.click('#nav a[href="#entrada"]');await A.fill('#e-qtd','50');await A.fill('#e-idade','12');await A.fill('#e-peso','280');await A.fill('#e-raca','Nelore');
- await A.click('#fEnt button[type=submit]');await A.waitForSelector('text=L-001');ok(true,'lote cadastrado');
+ await A.click('#nav a[href="#lotes"]');await A.click('#abas a[href="#lotes/entrada"]');await A.fill('#e-qtd','50');await A.fill('#e-idade','12');await A.fill('#e-peso','280');await A.fill('#e-ckg','11');await A.fill('#e-raca','Nelore');await A.fill('#e-gmd','0.6');
+ await A.click('#fEnt button[type=submit]');await A.waitForSelector('.lote:has-text("001")');ok(true,'lote cadastrado');
  await A.click('#nav a[href="#pesagem"]');await A.fill('#p-peso','300');
  await A.evaluate(()=>{});
  await A.click('text=Conta e fazendas');await A.waitForSelector('#nf-nome');
  await A.fill('#nf-nome','Sítio Aurora');await A.click('#fNovaFaz button');
  await A.waitForFunction(()=>document.querySelector('#fazNome')?.textContent==='Sítio Aurora');
  ok(await A.locator('#fazSel option').count()===2,'duas fazendas no seletor');
- await A.click('#nav a[href="#lotes"]');await A.waitForSelector('text=Nenhum lote ativo');ok(true,'fazenda nova começa vazia');
- await A.selectOption('#fazSel',{label:'Fazenda Santa Rita'});await A.waitForSelector('text=L-001');ok(true,'trocar de fazenda mostra os lotes dela');
+ await A.click('#nav a[href="#lotes"]');await A.waitForFunction(()=>/nenhum lote ativo/i.test(document.body.innerText));ok(true,'fazenda nova começa vazia');
+ await A.selectOption('#fazSel',{label:'Fazenda Santa Rita'});await A.waitForSelector('.lote:has-text("001")');ok(true,'trocar de fazenda mostra os lotes dela');
  await A.click('text=Conta e fazendas');await A.fill('#mb-email','socio@teste.com');await A.click('#fMembro button');
  await A.waitForSelector('text=agora tem acesso');ok(true,'sócio incluído');
  
  const C=await abrir(b,'socio@teste.com',{width:400,height:800});
  await C.waitForSelector('.app',{timeout:10000});await C.click('#tabbar a[href="#lotes"]');
- await C.waitForFunction(()=>document.body.innerText.includes('L-001')||document.body.innerText.includes('Nenhum lote'));
+ await C.waitForFunction(()=>document.body.innerText.includes('001')||/nenhum lote/i.test(document.body.innerText));
  const tc=await txt(C);ok(/Santa Rita|Aurora/i.test(tc),'sócio vê as fazendas do dono');
 
  // intruso tenta ler direto
