@@ -1,8 +1,9 @@
 // Gera a planilha Excel (.xlsx) com TUDO que está no sistema, já formatada.
-// Abas: Resumo (painel com indicadores), Lotes, Entradas, Saídas, Pesagens, Sanidade.
+// Abas: Resumo, Lotes (com custos), Entradas, Saídas (fechamento), Pesagens, Sanidade,
+// Pastos, Mudanças de pasto, Trato, Dietas, Preços e Custos.
 import ExcelJS from "exceljs";
 import {
-  hojeISO, dias, pesoAtual, calcGmd, ultimoGmd, saidaDoLote, resumo, pesagensDoLote,
+  hojeISO, calcGmd, pesoEstimadoEm, modelo, fechamento, precoMl, dietaEm, vigente,
 } from "./calc.js";
 
 let FAZENDA = "Fazenda";
@@ -10,68 +11,99 @@ let FAZENDA = "Fazenda";
 // "AAAA-MM-DD" → data do Excel (sem problema de fuso).
 const dt = (iso) => (iso ? new Date(iso + "T12:00:00") : null);
 const r1 = (v) => (v == null ? null : Math.round(v * 10) / 10);
+const r2 = (v) => (v == null ? null : Math.round(v * 100) / 100);
 const r3 = (v) => (v == null ? null : Math.round(v * 1000) / 1000);
 const sexo = (s) => (s === "M" ? "Macho" : "Fêmea");
+const mesBr = (chave) => { const [a, m] = chave.split("-"); return `${m}/${a}`; };
+function somaMes(chave, n) {
+  const [a, m] = chave.split("-").map(Number), t = a * 12 + (m - 1) + n;
+  return `${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, "0")}`;
+}
 
 // ------------------------------------------------------------ dados (uma linha por registro)
 export function linhasPlanilha(db) {
   const hoje = hojeISO();
+  const m = modelo(db, hoje);
   const loteById = Object.fromEntries(db.lotes.map((l) => [l.id, l]));
   const nome = (id) => loteById[id]?.numero ?? "(lote excluído)";
+  const nomeDe = (col, id) => (db[col] || []).find((x) => x.id === id)?.nome ?? "";
   const porData = (a, b) => a.data.localeCompare(b.data);
+  const situacao = (l) => (l.ativo ? "Ativo" : l.apartadoEm ? "Apartado" : "Saiu");
 
-  const lotesOrd = [...db.lotes].sort((a, b) => a.dataEntrada.localeCompare(b.dataEntrada));
+  const lotesOrd = [...db.lotes].sort((a, b) => a.dataEntrada.localeCompare(b.dataEntrada) || a.numero.localeCompare(b.numero, "pt-BR", { numeric: true }));
   const Lotes = lotesOrd.map((l) => {
-    const pa = pesoAtual(db, l);
-    const s = saidaDoLote(db, l.id);
-    const fim = s ? s.data : hoje;
-    const g = ultimoGmd(db, l);
+    const r = m.lote(l.id), pai = l.origemId ? loteById[l.origemId] : null;
+    // Lote apartado passou os custos para os lotes derivados: aqui fica em branco para não somar duas vezes.
+    const c = l.apartadoEm ? null : r.custos;
     return {
       Lote: l.numero,
-      Situação: l.ativo ? "Ativo" : "Saiu",
+      Situação: situacao(l),
       Cabeças: l.quantidade,
       Sexo: sexo(l.sexo),
       Raça: l.raca || "",
-      "Idade na entrada (meses)": l.idadeMeses,
+      "Origem do lote": pai ? "Apartação do " + pai.numero : l.origem || "",
       "Data de entrada": dt(l.dataEntrada),
       "Peso de entrada (kg)": l.pesoEntrada,
-      "Peso atual (kg)": pa.peso,
-      "Data do peso atual": dt(pa.data),
-      "Ganho desde a entrada (kg)": r1(pa.peso - l.pesoEntrada),
-      "GMD da última pesagem": r3(g),
-      "GMD desde a entrada": pa.origem === "pesagem" && dias(l.dataEntrada, pa.data) > 0
-        ? r3((pa.peso - l.pesoEntrada) / dias(l.dataEntrada, pa.data)) : null,
-      "Nº de pesagens": pesagensDoLote(db, l.id).length,
-      "Dias na fazenda": dias(l.dataEntrada, fim),
-      "Data de saída": s ? dt(s.data) : null,
+      "Peso atual ou final (kg)": r1(r.pesoFinal),
+      "GMD estimado (kg/dia)": r3(r.gmdEst),
+      "GMD real da última pesagem": r3(r.gmdReal),
+      "Dias na fazenda": r.dias,
+      "Pasto atual": l.ativo ? nomeDe("pastos", r.pastoId) : "",
+      "Dieta atual": l.ativo && r.dietaId ? nomeDe("dietas", r.dietaId) : "",
+      "Aquisição (R$)": c ? r2(c.aquisicao) : null,
+      "Pasto (R$)": c ? r2(c.pasto) : null,
+      "Trato (R$)": c ? r2(c.trato) : null,
+      "Sanidade (R$)": c ? r2(c.sanidade) : null,
+      "Custos fixos (R$)": c ? r2(c.fixos) : null,
+      "Custos gerais (R$)": c ? r2(c.gerais) : null,
+      "Custo total (R$)": c ? r2(r.total) : null,
+      "Custo por cabeça (R$/cab)": c && l.quantidade ? r2(r.total / l.quantidade) : null,
+      "Custo de hoje (R$)": l.ativo ? r2(r.hoje.total) : null,
       Observações: l.obs || "",
     };
   });
 
-  const Entradas = lotesOrd.map((l) => ({
+  const Entradas = lotesOrd.filter((l) => !l.origemId).map((l) => ({
     "Data de entrada": dt(l.dataEntrada),
     Lote: l.numero,
     Cabeças: l.quantidade,
     Sexo: sexo(l.sexo),
     Raça: l.raca || "",
-    "Idade (meses)": l.idadeMeses,
+    "Idade (meses)": l.idadeMeses ?? null,
     "Peso médio de entrada (kg)": l.pesoEntrada,
     "Peso total de entrada (kg)": Math.round(l.pesoEntrada * l.quantidade),
+    "Custo do kg (R$/kg)": l.custoKg ?? null,
+    "Comissão (R$)": l.custoKg != null ? l.comissao || 0 : null,
+    "Frete (R$)": l.custoKg != null ? l.frete || 0 : null,
+    "Custo de aquisição (R$)": l.custoKg != null ? r2(l.quantidade * l.pesoEntrada * l.custoKg + (l.comissao || 0) + (l.frete || 0)) : null,
+    "GMD estimado (kg/dia)": r3(l.gmdEst),
+    "Origem do lote": l.origem || "",
     Observações: l.obs || "",
   }));
 
   const Saidas = [...db.saidas].sort(porData).map((s) => {
-    const l = loteById[s.loteId];
+    const r = m.lote(s.loteId), f = r && s.tipo ? fechamento(r, s) : null;
     return {
       "Data de saída": dt(s.data),
       Lote: nome(s.loteId),
-      Motivo: s.motivo,
+      Tipo: s.tipo === "abate" ? "Abate" : s.tipo === "vivo" ? "Venda viva" : s.motivo || "Saída",
       "Destino / comprador": s.destino || "",
-      Cabeças: s.quantidade,
+      Cabeças: s.quantidade ?? (r ? r.lote.quantidade : null),
       "Peso médio de saída (kg)": s.peso ?? null,
-      "Peso total de saída (kg)": s.peso && s.quantidade ? Math.round(s.peso * s.quantidade) : null,
-      "Ganho desde a entrada (kg)": l && s.peso ? r1(s.peso - l.pesoEntrada) : null,
-      "Dias na fazenda": l ? dias(l.dataEntrada, s.data) : null,
+      "Peso total de saída (kg)": f ? Math.round(f.pesoTotal) : null,
+      "Dias na fazenda": r ? r.dias : null,
+      "GMD do período (kg/dia)": f ? r3(f.gmdPeriodo) : null,
+      "Rendimento de carcaça (%)": f && s.tipo === "abate" ? r1(f.rend) : null,
+      "Rendimento usado": f && s.tipo === "abate" ? (f.rendReal ? "Real" : "Esperado") : "",
+      "Arrobas (@)": f ? r1(f.arrobas) : null,
+      "Preço da arroba (R$/@)": s.precoArroba ?? null,
+      "Preço do kg vivo (R$/kg)": s.precoKg ?? null,
+      "Receita (R$)": f ? r2(f.receita) : null,
+      "Custo total (R$)": r ? r2(r.total) : null,
+      "Custo por dia com a compra (R$/dia)": f ? r2(f.custoDia) : null,
+      "Custo por dia só produção (R$/dia)": f ? r2(f.custoDiaProd) : null,
+      "Resultado (R$)": f ? r2(f.resultado) : null,
+      "Resultado por cabeça (R$/cab)": f ? r2(f.resultadoCab) : null,
       Observação: s.obs || "",
     };
   });
@@ -79,32 +111,118 @@ export function linhasPlanilha(db) {
   const Pesagens = [...db.pesagens].sort((a, b) => porData(a, b) || nome(a.loteId).localeCompare(nome(b.loteId))).map((p) => {
     const l = loteById[p.loteId];
     const c = l ? calcGmd(db, l, p) : null;
+    const est = l ? pesoEstimadoEm(db, l, p.data, p.id).peso : null;
     return {
       Data: dt(p.data),
       Lote: nome(p.loteId),
       "Peso médio (kg/animal)": p.peso,
+      "Peso estimado na data (kg)": r1(est),
+      "Diferença balança − estimado (kg)": est != null ? r1(p.peso - est) : null,
       "Comparado com": c ? c.ref.tipo : "",
       "Data anterior": c ? dt(c.ref.data) : null,
       "Peso anterior (kg)": c ? c.ref.peso : null,
       Dias: c ? c.dias : null,
       "Ganho (kg)": c ? r1(c.ganho) : null,
-      "GMD (kg/dia)": c ? r3(c.gmd) : null,
+      "GMD real (kg/dia)": c ? r3(c.gmd) : null,
     };
   });
 
   const Sanidade = [...db.sanidade].sort(porData).map((s) => {
-    const l = loteById[s.loteId];
+    const l = loteById[s.loteId], med = s.medId ? (db.meds || []).find((x) => x.id === s.medId) : null;
+    const ml = s.ml != null ? s.ml : s.doseMl != null && l ? s.doseMl * l.quantidade : null;
     return {
       Data: dt(s.data),
       Lote: nome(s.loteId),
-      "Vacina / procedimento": s.procedimento,
-      "Dose por animal (ml)": s.doseMl,
-      Cabeças: l ? l.quantidade : null,
-      "Total aplicado (ml)": l ? r1(s.doseMl * l.quantidade) : null,
+      Tipo: s.tipo === "tratamento" ? "Tratamento" : "Protocolo",
+      "Doença tratada": s.doenca || "",
+      Medicamento: med ? med.nome : s.procedimento || "",
+      "Total aplicado (ml)": r1(ml),
+      "ml por cabeça": s.mlCab != null ? r1(s.mlCab) : s.doseMl ?? null,
+      "Animais tratados": s.animais ?? null,
+      "Preço na data (R$/ml)": med ? r3(precoMl(med, s.data)) : null,
+      "Custo (R$)": med && ml != null ? r2(ml * precoMl(med, s.data)) : null,
     };
   });
 
-  return { Lotes, Entradas, Saídas: Saidas, Pesagens, Sanidade };
+  const Pastos = m.pastos.map((p) => {
+    const v = vigente(p.pasto.precos, hoje);
+    return {
+      Pasto: p.pasto.nome,
+      Capim: p.pasto.capim || "",
+      "Área (ha)": p.pasto.area,
+      "Custo (R$/ha/ano)": v ? v.valor : null,
+      "Custo por dia (R$/dia)": r2(p.custoDia),
+      "Lotes no pasto": p.lotes.map((r) => r.lote.numero).join(", "),
+      Cabeças: p.cabecas,
+      "Lotação (cab/ha)": p.lotacao == null ? null : r2(p.lotacao),
+      "Ocupado desde": p.desde ? dt(p.desde) : null,
+      "Pasto ocioso em 12 meses (R$)": r2(p.ocioso),
+    };
+  });
+
+  const Movs = [...(db.movs || [])].sort(porData).map((x) => ({
+    Data: dt(x.data),
+    Lote: nome(x.loteId),
+    Pasto: nomeDe("pastos", x.pastoId) || "(sem pasto)",
+    Piquete: x.piquete || "",
+    Tipo: x.inicial ? "Entrada" : "Mudança",
+  }));
+
+  const Trato = m.ativos.filter((r) => r.consumo).map((r) => ({
+    Lote: r.lote.numero,
+    Dieta: nomeDe("dietas", r.dietaId),
+    Cabeças: r.lote.quantidade,
+    "Peso estimado (kg)": r1(r.peso),
+    "Consumo (% do peso vivo)": r.consumo.pv,
+    "Consumo do lote (kg/dia)": r1(r.consumo.kgLote),
+    "Consumo por cabeça (kg/dia)": r2(r.consumo.kgCab),
+    "Custo da dieta (R$/kg)": r3(r.consumo.custoKg),
+    "Custo de trato hoje (R$)": r2(r.hoje.trato),
+  }));
+
+  const Dietas = [];
+  for (const d of [...(db.dietas || [])].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"))) {
+    const v = dietaEm(db, d, hoje);
+    if (!v) continue;
+    for (const it of v.itens) {
+      Dietas.push({
+        Dieta: d.nome,
+        "Composição desde": dt(v.desde),
+        "Consumo (% do peso vivo)": v.pv,
+        Ingrediente: it.nome,
+        "Na mistura (%)": it.pct,
+        "Preço hoje (R$/t)": it.rT,
+        "Custo da dieta (R$/kg)": r3(v.custoKg),
+        "Matéria seca da dieta (%)": r1(v.ms),
+      });
+    }
+  }
+
+  const Precos = [];
+  const hist = (tipo, lista, linha) => {
+    for (const x of [...(lista || [])].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"))) {
+      for (const p of [...(x.precos || [])].sort((a, b) => a.desde.localeCompare(b.desde))) Precos.push({ Tipo: tipo, Nome: x.nome, "Vale desde": dt(p.desde), ...linha(p) });
+    }
+  };
+  hist("Medicamento", db.meds, (p) => ({ Preço: `R$ ${p.preco.toFixed(2).replace(".", ",")} por ${p.ml} ml`, "Preço por unidade (R$)": r3(p.ml > 0 ? p.preco / p.ml : 0), Unidade: "ml" }));
+  hist("Ingrediente", db.ingredientes, (p) => ({ Preço: `R$ ${p.valor.toFixed(2).replace(".", ",")} por tonelada`, "Preço por unidade (R$)": r3(p.valor / 1000), Unidade: "kg" }));
+  hist("Pasto", db.pastos, (p) => ({ Preço: `R$ ${p.valor.toFixed(2).replace(".", ",")} por hectare por ano`, "Preço por unidade (R$)": r3(p.valor / 365), Unidade: "hectare por dia" }));
+
+  const Custos = [...(db.custos || [])].sort((a, b) => (a.mes || a.data).localeCompare(b.mes || b.data)).map((c) => {
+    const fixo = c.tipo === "fixo", n = Math.max(1, c.meses || 1);
+    return {
+      Tipo: fixo ? "Custo fixo" : "Custo geral",
+      Descrição: c.descricao,
+      Categoria: fixo ? c.categoria || "Outro" : "Custos gerais",
+      "Valor lançado (R$)": c.valor,
+      "Valor por mês (R$)": fixo ? c.valor : r2(c.valor / n),
+      "Primeiro mês": mesBr(fixo ? c.mes : c.data.slice(0, 7)),
+      "Último mês": fixo ? (!c.recorrente ? mesBr(c.mes) : c.ate ? mesBr(c.ate) : "em aberto") : mesBr(somaMes(c.data.slice(0, 7), n - 1)),
+      "Meses de diluição": fixo ? null : n,
+    };
+  });
+
+  return { Lotes, Entradas, Saídas: Saidas, Pesagens, Sanidade, Pastos, "Mudanças de pasto": Movs, Trato, Dietas, Preços: Precos, Custos };
 }
 
 // ------------------------------------------------------------ visual
@@ -132,7 +250,16 @@ function corGmd(g) {
 
 // Formato, alinhamento, largura e total de cada coluna, pelo nome do cabeçalho.
 function coluna(h) {
-  if (/^Data|Data /.test(h)) return { fmt: "dd/mm/yyyy", al: "center", w: 13 };
+  if (/R\$\/(kg|ml|t|@|ha|cab|dia)|por unidade/.test(h)) return { fmt: /R\$\/(kg|ml)|por unidade/.test(h) ? '"R$" #,##0.000' : '"R$" #,##0.00', al: "right", w: 15 };
+  if (/R\$/.test(h)) return { fmt: '"R$" #,##0.00;[Red]-"R$" #,##0.00', al: "right", w: 16, total: "soma" };
+  if (/\(%|%\)/.test(h)) return { fmt: "0.0", al: "center", w: 13 };
+  if (/\(@\)/.test(h)) return { fmt: "#,##0.0", al: "right", w: 13, total: "soma" };
+  if (/\(ha\)/.test(h)) return { fmt: "#,##0.0", al: "right", w: 11, total: "soma" };
+  if (/cab\/ha/.test(h)) return { fmt: "0.00", al: "center", w: 12 };
+  if (/ml por|Animais|Meses/.test(h)) return { fmt: "#,##0.##", al: "center", w: 11 };
+  if (/kg\/dia\)/.test(h) && !/GMD/.test(h)) return { fmt: "#,##0.0", al: "right", w: 14, total: "soma" };
+  if (/mês$/.test(h)) return { al: "center", w: 12 };
+  if (/^Data|Data |desde/.test(h)) return { fmt: "dd/mm/yyyy", al: "center", w: 13 };
   if (/GMD/.test(h)) return { fmt: "0.000", al: "center", w: 13, total: "media" };
   if (/Peso total/.test(h)) return { fmt: "#,##0", al: "right", w: 15, total: "soma" };
   if (/Total aplicado/.test(h)) return { fmt: "#,##0.0", al: "right", w: 13, total: "soma" };
@@ -142,7 +269,8 @@ function coluna(h) {
   if (h === "Cabeças") return { fmt: "#,##0", al: "center", w: 10, total: "soma" };
   if (/^Dias/.test(h)) return { fmt: "0", al: "center", w: 10, total: "media" };
   if (/Nº|Idade/.test(h)) return { fmt: "0", al: "center", w: 11 };
-  if (/^Lote$|Situação|Sexo|Motivo/.test(h)) return { al: "center", w: 10 };
+  if (/^Lote$|Situação|Sexo|Motivo|Unidade|Rendimento usado/.test(h)) return { al: "center", w: 12 };
+  if (/^Tipo$|Piquete|Categoria/.test(h)) return { al: "center", w: 14 };
   if (/Comparado/.test(h)) return { al: "left", w: 16 };
   if (/Observa/.test(h)) return { al: "left", w: 40, wrap: true };
   if (/Vacina/.test(h)) return { al: "left", w: 32, wrap: true };
@@ -191,20 +319,29 @@ function impressao(ws, linhaCab) {
 
 const LINHA_CAB = 4;
 const SUB_ABA = {
-  Lotes: "Todos os lotes, ativos e que já saíram, com peso atual, ganho e GMD.",
-  Entradas: "Cada lote que entrou na fazenda, com peso e quantidade na chegada.",
-  Saídas: "Histórico de saídas (venda, morte, transferência) com peso e ganho no período.",
-  Pesagens: "Todas as pesagens. O GMD compara com a pesagem anterior do lote (ou com a entrada).",
-  Sanidade: "Vacinas e procedimentos aplicados, com dose e total gasto por lote.",
+  Lotes: "Todos os lotes, com peso, GMD e o custo acumulado de cada um (compra, pasto, trato, sanidade e rateios).",
+  Entradas: "Cada lote comprado, com peso, quantidade e custo de aquisição na chegada.",
+  Saídas: "Fechamento de cada saída: arrobas, receita, custo total, custo por dia e resultado do lote.",
+  Pesagens: "Todas as pesagens. Compara a balança com o peso estimado e calcula o GMD real.",
+  Sanidade: "Protocolos e tratamentos, com o custo pelo preço do medicamento que valia na data.",
+  Pastos: "Situação de cada pasto hoje: lotes, lotação, custo por dia e pasto ocioso.",
+  "Mudanças de pasto": "Por onde cada lote passou: entrada e mudanças de pasto.",
+  Trato: "Quanto cada lote ativo precisa no cocho hoje e quanto custa.",
+  Dietas: "Composição atual de cada dieta, com o preço de hoje dos ingredientes.",
+  Preços: "Histórico de preços de medicamentos, ingredientes e pastos, com a data em que cada um começou a valer.",
+  Custos: "Custos fixos mensais e custos gerais diluídos em meses, rateados por cabeça por dia.",
 };
-const COR_ABA = { Lotes: COR.verde, Entradas: "FF3F7A4D", Saídas: COR.terra, Pesagens: COR.amarelo, Sanidade: "FF2F6F8F" };
-const CONGELA_COLS = { Lotes: 2, Entradas: 2, Saídas: 2, Pesagens: 2, Sanidade: 2 };
+const COR_ABA = {
+  Lotes: COR.verde, Entradas: "FF3F7A4D", Saídas: COR.terra, Pesagens: COR.amarelo, Sanidade: "FF2F6F8F",
+  Pastos: "FF46A05E", "Mudanças de pasto": "FF46A05E", Trato: "FFF4B92F", Dietas: "FFF4B92F", Preços: COR.apagado, Custos: COR.vermelho,
+};
+const CONGELA = (nome) => (nome === "Preços" || nome === "Custos" ? 2 : nome === "Pastos" || nome === "Trato" || nome === "Dietas" ? 1 : 2);
 
 /** Aba de tabela: título, cabeçalho colorido, linhas alternadas, filtros, painel congelado e totais. */
 function abaTabela(wb, nome, linhas, geradaEm) {
   const ws = wb.addWorksheet(nome, {
     properties: { tabColor: { argb: COR_ABA[nome] } },
-    views: [{ state: "frozen", xSplit: linhas.length ? CONGELA_COLS[nome] : 0, ySplit: LINHA_CAB, showGridLines: false, zoomScale: 110 }],
+    views: [{ state: "frozen", xSplit: linhas.length ? CONGELA(nome) : 0, ySplit: LINHA_CAB, showGridLines: false, zoomScale: 110 }],
   });
   const cab = linhas.length ? Object.keys(linhas[0]) : [];
   const ncol = Math.max(cab.length, 6);
@@ -242,7 +379,7 @@ function abaTabela(wb, nome, linhas, geradaEm) {
   // Linhas
   linhas.forEach((obj, k) => {
     const r = ws.getRow(LINHA_CAB + 1 + k);
-    const saiu = obj["Situação"] === "Saiu";
+    const saiu = obj["Situação"] != null && obj["Situação"] !== "Ativo";
     const fundo = saiu ? COR.cinza : k % 2 ? COR.zebra : COR.papel;
     let maxLinhas = 1;
     cab.forEach((h, i) => {
@@ -250,7 +387,7 @@ function abaTabela(wb, nome, linhas, geradaEm) {
       const v = obj[h];
       c.value = v === "" ? null : v;
       const spec = cols[i];
-      c.font = { name: FONTE, size: 10, color: { argb: saiu ? COR.apagado : COR.texto }, bold: h === "Lote" };
+      c.font = { name: FONTE, size: 10, color: { argb: saiu ? COR.apagado : COR.texto }, bold: h === "Lote" || /^(Custo total|Resultado) \(R\$\)$/.test(h) };
       c.fill = fill(fundo);
       c.border = borda();
       c.alignment = { vertical: "middle", horizontal: spec.al, wrapText: !!spec.wrap, indent: spec.al === "left" ? 1 : 0 };
@@ -325,8 +462,10 @@ function abaResumo(wb, db, geradaEm) {
   impressao(ws, null);
   ws.pageSetup.orientation = "portrait";
 
-  const r = resumo(db);
+  const m = modelo(db, hojeISO()), fz = m.fazenda;
+  const r = { ...fz, lotesSaidos: fz.lotesEncerrados };
   const ativos = db.lotes.filter((l) => l.ativo);
+  const custoAtivos = m.ativos.reduce((t, x) => t + x.total, 0);
   const cabSaidas = db.saidas.reduce((s, x) => s + (x.quantidade || 0), 0);
   let linha = 4;
 
@@ -380,14 +519,21 @@ function abaResumo(wb, db, geradaEm) {
     ["Machos ativos", r.machos, "#,##0", "cabeças"],
     ["Fêmeas ativas", r.femeas, "#,##0", "cabeças"],
     ["Peso total do rebanho", Math.round(r.pesoTotal), "#,##0", "kg (peso vivo)"],
-    ["Lotes que já saíram", r.lotesSaidos, "0", "lotes encerrados"],
+    ["Lotes encerrados", r.lotesSaidos, "0", "saídas e apartações"],
+  ]);
+  secao("Custos hoje");
+  cartoes([
+    ["Custo do dia da fazenda", r2(fz.custoDia), '"R$" #,##0.00', "pasto, trato e rateios", true],
+    ["Custo por cabeça por dia", r2(fz.custoCabDia), '"R$" #,##0.00', "média do rebanho", true],
+    ["Custo nos lotes ativos", Math.round(custoAtivos), '"R$" #,##0', "acumulado, com a compra", true],
+    ["Pastos ocupados", fz.pastosOcupados, "0", `${fz.pastosVazios} ${fz.pastosVazios === 1 ? "vazio" : "vazios"}`, true],
   ]);
   secao("Registros no sistema");
   cartoes([
     ["Lotes cadastrados", db.lotes.length, "0", "entradas"],
     ["Cabeças que saíram", cabSaidas, "#,##0", `em ${db.saidas.length} ${db.saidas.length === 1 ? "saída" : "saídas"}`],
     ["Pesagens", db.pesagens.length, "0", "registradas"],
-    ["Manejos sanitários", db.sanidade.length, "0", "vacinas e procedimentos"],
+    ["Manejos sanitários", db.sanidade.length, "0", "protocolos e tratamentos"],
   ]);
 
   // Tabela-resumo genérica
@@ -429,13 +575,12 @@ function abaResumo(wb, db, geradaEm) {
   if (ativos.length) {
     const ord = [...ativos].sort((a, b) => a.numero.localeCompare(b.numero, "pt-BR", { numeric: true }));
     tabela(
-      ["Lote", "Raça", "Sexo", "Cabeças", "Peso atual (kg)", "Último GMD (kg/dia)", "Dias na fazenda", "Última pesagem"],
+      ["Lote", "Raça", "Sexo", "Cabeças", "Peso estimado (kg)", "Último GMD real (kg/dia)", "Dias na fazenda", "Custo total (R$)"],
       ord.map((l) => {
-        const pa = pesoAtual(db, l);
-        return [l.numero, l.raca || null, sexo(l.sexo), l.quantidade, pa.peso, r3(ultimoGmd(db, l)),
-          dias(l.dataEntrada, hojeISO()), pa.origem === "pesagem" ? dt(pa.data) : null];
+        const x = m.lote(l.id);
+        return [l.numero, l.raca || null, sexo(l.sexo), l.quantidade, r1(x.peso), r3(x.gmdReal), x.dias, r2(x.total)];
       }),
-      [{ bold: true }, { al: "left" }, {}, { fmt: "#,##0" }, { fmt: "#,##0.0" }, { fmt: "0.000", gmd: true }, { fmt: "0" }, { fmt: "dd/mm/yyyy" }],
+      [{ bold: true }, { al: "left" }, {}, { fmt: "#,##0" }, { fmt: "#,##0.0" }, { fmt: "0.000", gmd: true }, { fmt: "0" }, { fmt: '"R$" #,##0.00' }],
     );
   } else {
     ws.getCell(`B${linha}`).value = "Nenhum lote ativo.";
@@ -472,7 +617,7 @@ function abaResumo(wb, db, geradaEm) {
     [corGmd(1), `GMD bom: ${GMD_BOM.toFixed(3).replace(".", ",")} kg/dia ou mais`],
     [corGmd(0.5), `GMD regular: de ${GMD_REGULAR.toFixed(3).replace(".", ",")} a ${(GMD_BOM - 0.001).toFixed(3).replace(".", ",")} kg/dia`],
     [corGmd(0), `GMD baixo: menos de ${GMD_REGULAR.toFixed(3).replace(".", ",")} kg/dia (ou perda de peso)`],
-    [{ bg: COR.terraClara, fg: COR.terra }, "Lote que já saiu da fazenda (linha cinza na aba Lotes)"],
+    [{ bg: COR.terraClara, fg: COR.terra }, "Lote encerrado: saiu da fazenda ou foi apartado (linha cinza na aba Lotes)"],
   ];
   leg.forEach(([cor, txt]) => {
     const c = ws.getCell(`B${linha}`);
@@ -489,7 +634,7 @@ function abaResumo(wb, db, geradaEm) {
   linha++;
   ws.mergeCells(`B${linha}:I${linha}`);
   const n = ws.getCell(`B${linha}`);
-  n.value = "Detalhes nas outras abas: Lotes, Entradas, Saídas, Pesagens (todas, com GMD) e Sanidade.";
+  n.value = "Detalhes nas outras abas: Lotes (custos), Entradas, Saídas (fechamento), Pesagens, Sanidade, Pastos, Trato, Dietas, Preços e Custos.";
   n.font = { name: FONTE, size: 9, italic: true, color: { argb: COR.apagado } };
   return ws;
 }

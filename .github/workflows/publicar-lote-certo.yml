@@ -4,7 +4,7 @@ name: Publicar Lote Certo
 # Não mexe no site da Fazenda São João.
 on:
   push:
-    branches: [claude/project-thread-pbdqxq]
+    branches: [main]
     paths: ["comercial/**", ".github/workflows/publicar-lote-certo.yml"]
   workflow_dispatch:
 

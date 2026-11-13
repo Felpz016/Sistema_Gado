@@ -17,10 +17,13 @@ import {
 import { firebaseConfig } from "./firebase-config.js";
 import { exemplo } from "./exemplo.js";
 
-export const COLECOES = ["lotes", "pesagens", "sanidade", "saidas"];
+// lotes, pesagens, sanidade (protocolo e tratamento), saidas,
+// pastos, movs (mudanças de pasto), gmds (ajustes do GMD estimado),
+// meds (medicamentos), ingredientes, dietas, tratos (dieta de cada lote), custos (fixos e gerais)
+export const COLECOES = ["lotes", "pesagens", "sanidade", "saidas", "pastos", "movs", "gmds", "meds", "ingredientes", "dietas", "tratos", "custos"];
 
 function vazio() {
-  return { lotes: [], pesagens: [], sanidade: [], saidas: [] };
+  return Object.fromEntries(COLECOES.map((c) => [c, []]));
 }
 
 function idNovo() {
@@ -32,6 +35,8 @@ export function criarStore(avisar) {
   // Teste local com os emuladores do Firebase: http://localhost:8080/?emulador
   const emulador = ["localhost", "127.0.0.1"].includes(location.hostname) && new URLSearchParams(location.search).has("emulador");
   if (emulador) return storeNuvem(avisar, { apiKey: "demo-key", projectId: "demo-lote-certo", authDomain: "localhost", appId: "demo" }, true);
+  // Teste local sem banco, com os dados de exemplo: http://localhost:8080/app/?demo
+  if (["localhost", "127.0.0.1"].includes(location.hostname) && new URLSearchParams(location.search).has("demo")) return storeDemo(avisar);
   const temConfig = firebaseConfig && firebaseConfig.apiKey && firebaseConfig.projectId;
   return temConfig ? storeNuvem(avisar, firebaseConfig, false) : storeDemo(avisar);
 }
@@ -40,7 +45,7 @@ export function criarStore(avisar) {
 // Estrutura no banco:
 //   contas/{uid}                                  cadastro de quem entrou (e-mail, nome)
 //   contas/{uid}/fazendas/{fazenda}               fazendas da conta
-//   contas/{uid}/fazendas/{fazenda}/{coleção}/…   lotes, pesagens, sanidade, saídas
+//   contas/{uid}/fazendas/{fazenda}/{coleção}/…   as coleções de COLECOES (lotes, pesagens, pastos, custos…)
 //   contas/{uid}/membros/{e-mail}                 sócio ou funcionário com acesso
 //   convites/{e-mail}                             diz a quem entra de qual conta ele é membro
 //   assinaturas/{uid}                             assinatura da conta (só o administrador grava)
@@ -338,13 +343,13 @@ function limpar(o) {
 
 // ---------------------------------------------------------------- demonstração
 function storeDemo(avisar) {
-  const CHAVE = "lc-demo-v1";
+  const CHAVE = "lc-demo-v2";
   let tudo;
   try { tudo = JSON.parse(localStorage.getItem(CHAVE)); } catch { tudo = null; }
   if (!tudo || !tudo.fazendas || !tudo.fazendas.length) tudo = { fazendas: [{ id: "exemplo", nome: "Fazenda Boa Vista" }], dados: { exemplo: exemplo() }, atual: "exemplo" };
   const S = {
     modo: "demo",
-    db: tudo.dados[tudo.atual] || vazio(),
+    db: { ...vazio(), ...(tudo.dados[tudo.atual] || {}) },
     usuario: { nome: "Demonstração", email: "" },
     conta: { id: "demo", minha: true, donoNome: "" },
     assinatura: { ativa: true, ate: null },
@@ -365,7 +370,7 @@ function storeDemo(avisar) {
   const mudouRede = () => { S.online = navigator.onLine; avisar(); };
   addEventListener("online", mudouRede);
   addEventListener("offline", mudouRede);
-  const escolherFazenda = (id) => { persistir(); S.fazendaId = id; S.db = tudo.dados[id] || (tudo.dados[id] = vazio()); persistir(); avisar(); };
+  const escolherFazenda = (id) => { persistir(); S.fazendaId = id; S.db = { ...vazio(), ...(tudo.dados[id] || {}) }; tudo.dados[id] = S.db; persistir(); avisar(); };
 
   return {
     S,
@@ -391,6 +396,6 @@ function storeDemo(avisar) {
     async definirAssinatura() {},
     async entrar() {},
     async sair() {},
-    restaurarExemplo() { S.db = exemplo(); persistir(); avisar(); },
+    restaurarExemplo() { S.db = { ...vazio(), ...exemplo() }; persistir(); avisar(); },
   };
 }
