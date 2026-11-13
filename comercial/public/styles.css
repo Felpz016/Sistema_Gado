@@ -30,7 +30,7 @@ h1,h2,h3{font-family:var(--display);font-weight:800;margin:0;text-wrap:balance;t
 #root{min-height:100%}
 
 /* ===== casca ===== */
-.app{display:grid;grid-template-columns:248px 1fr;min-height:100%}
+.app{display:grid;grid-template-columns:248px 1fr;min-height:100%;background:linear-gradient(to right,var(--night) 248px,transparent 248px)}
 .side{background:var(--night);color:var(--hide);padding:20px 14px;display:flex;flex-direction:column;gap:16px;position:sticky;top:0;height:100vh;overflow-y:auto;
   background-image:radial-gradient(120% 40% at 0% 0%,rgba(44,122,68,.35),transparent 70%)}
 .brand{display:flex;flex-direction:column;gap:10px;padding:0 6px}
@@ -82,8 +82,8 @@ h1,h2,h3{font-family:var(--display);font-weight:800;margin:0;text-wrap:balance;t
 .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:18px}
 .label{font-family:var(--mono);font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);font-weight:500}
 .kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
-.kpi{display:flex;flex-direction:column;gap:6px;min-width:0}
-.kpi .v{font-family:var(--display);font-size:46px;font-weight:900;line-height:.9}
+.kpi{display:flex;flex-direction:column;gap:6px;min-width:0;container-type:inline-size}
+.kpi .v{font-family:var(--display);font-size:46px;font-size:clamp(26px,19cqi,46px);font-weight:900;line-height:.9;white-space:nowrap}
 .kpi .v small{font-family:var(--mono);font-size:13px;color:var(--muted);font-weight:400;letter-spacing:0}
 .kpi .s{font-size:13px;color:var(--muted)}
 .kpi.dark{background:var(--night-2);border-color:var(--night-line);color:var(--hide)}
@@ -271,7 +271,7 @@ details.mais[open]>summary{margin-bottom:10px}
 
 /* ===== celular ===== */
 @media (max-width:860px){
-  .app{grid-template-columns:1fr}
+  .app{grid-template-columns:1fr;background:none}
   .side{display:none}
   .top{background:var(--night);color:var(--hide);border:0;backdrop-filter:none;padding-block:10px 12px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
   .top h1{font-size:28px;min-width:auto}
@@ -283,7 +283,7 @@ details.mais[open]>summary{margin-bottom:10px}
   .abas::-webkit-scrollbar{display:none}
   .abas a{white-space:nowrap;flex:none}
   .kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
-  .kpi .v{font-size:38px}
+  .kpi .v{font-size:38px;font-size:clamp(24px,21cqi,38px)}
   .card{padding:15px}
   .tw{margin:0 -15px;padding:0 15px}
   .grid2{grid-template-columns:minmax(0,1fr)}
