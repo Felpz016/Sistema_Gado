@@ -2,7 +2,7 @@
 import { ultimoEmail, assinaturaAtiva } from "./store.js";
 import { LINK_ASSINAR } from "./firebase-config.js";
 import {
-  store, S, ui, $, $$, esc, d2, icon, toast, erros, nomeFazenda, TELAS, MODS, definirAoMudar,
+  store, S, ui, $, $$, esc, d2, icon, toast, erros, confirmar, nomeFazenda, TELAS, MODS, definirAoMudar,
 } from "./base.js";
 import { abrirLote, fecharLote, renderDrawer, drawerAberto, drawerEditando } from "./drawer.js";
 import "./telas-lotes.js";
@@ -57,7 +57,7 @@ function render() {
   }
   if (!assinaturaAtiva(S.assinatura)) { telaBloqueio(root, "assinatura"); return; }
   if (S.fazendas === null) { root.innerHTML = '<div class="loading">Buscando as fazendas…</div>'; telaAtual = null; portao = ""; return; }
-  if (!S.fazendas.length) { telaBloqueio(root, "fazenda"); return; }
+  if (!S.fazendas.length) { telaBloqueio(root, S.erroFazendas ? "erro" : "fazenda"); return; }
   portao = "";
 
   if (!$(".app", root)) {
@@ -304,9 +304,26 @@ function telaBloqueio(root, tipo) {
     if (!erros(f, nome ? [] : [["faz1", "Informe o nome da fazenda."]])) return;
     const bt = f.querySelector("button[type=submit]");
     bt.disabled = true; bt.textContent = "Criando a fazenda…";
-    store.criarFazenda(nome);
+    store.criarFazenda(nome, true);
     if (location.hash !== "#painel") location.hash = "painel";
   };
+}
+
+/** Fazendas com o nome igual ao de outra. Fica de fora a que está aberta (ou a mais antiga de cada nome). */
+function repetidas() {
+  const grupos = new Map();
+  for (const f of S.fazendas) {
+    const k = String(f.nome || "").trim().toLowerCase();
+    if (!grupos.has(k)) grupos.set(k, []);
+    grupos.get(k).push(f);
+  }
+  const fora = [];
+  for (const g of grupos.values()) {
+    if (g.length < 2) continue;
+    const fica = g.find((f) => f.id === S.fazendaId) || [...g].sort((a, b) => String(a.criadoEm || "").localeCompare(String(b.criadoEm || "")))[0];
+    fora.push(...g.filter((f) => f !== fica));
+  }
+  return fora;
 }
 
 TELAS.conta = {
@@ -315,12 +332,17 @@ TELAS.conta = {
     const dono = S.conta.minha;
     return `
     <section class="card"><div class="sec-h"><h3>Fazendas</h3><span class="note">${S.fazendas.length} ${S.fazendas.length === 1 ? "fazenda" : "fazendas"}</span></div>
+      ${dono && repetidas().length ? `<div class="banner" style="margin-bottom:12px"><span><b>${repetidas().length} ${repetidas().length === 1 ? "fazenda repetida" : "fazendas repetidas"}</b> com o mesmo nome de outra. As que não têm nenhum lançamento podem ser apagadas de uma vez.</span><button class="btn sm" type="button" id="limparFaz" data-confirm="Confirmar: apagar as repetidas vazias">Apagar as repetidas vazias</button></div>` : ""}
       <div class="rows">${S.fazendas.map((f) => `
-        <form class="rowf" data-faz="${f.id}" novalidate>
-          <div class="f"><label for="fz-${f.id}">Nome</label><input id="fz-${f.id}" value="${esc(f.nome)}" autocomplete="off"></div>
-          <button class="btn ghost" type="submit">Salvar nome</button>
-          ${f.id === S.fazendaId ? '<span class="pill m">Em uso</span>' : `<button class="btn" type="button" data-act="usar-fazenda" data-id="${f.id}">Abrir esta</button>`}
-        </form>`).join("")}</div>
+        <div class="item faz"><div class="ih"><div><b>${esc(f.nome)}</b>${f.id === S.fazendaId ? ' <span class="pill m">Em uso</span>' : ""}</div>
+          <div class="actions">${f.id === S.fazendaId ? "" : `<button class="btn sm" type="button" data-act="usar-fazenda" data-id="${f.id}">Abrir esta</button>`}</div></div>
+          ${dono ? `<details class="mais"><summary>Mudar o nome${f.id === S.fazendaId ? "" : " ou excluir"}</summary>
+          <form class="rowf" data-faz="${f.id}" novalidate>
+            <div class="f"><label for="fz-${f.id}">Nome</label><input id="fz-${f.id}" value="${esc(f.nome)}" autocomplete="off"></div>
+            <button class="btn ghost sm" type="submit">Salvar nome</button>
+            ${f.id === S.fazendaId ? "" : `<button class="mini danger" type="button" data-excluir-faz="${f.id}" data-confirm="Confirmar exclusão da fazenda">Excluir fazenda</button>`}
+          </form>${f.id === S.fazendaId ? "" : '<p class="note" style="margin-top:8px">Só dá para excluir uma fazenda sem nenhum lançamento.</p>'}</details>` : ""}
+        </div>`).join("")}</div>
       ${dono ? `<form class="rowf" id="fNovaFaz" novalidate style="margin-top:14px;border-top:1px solid var(--line);padding-top:14px">
         <div class="f"><label for="nf-nome">Nova fazenda</label><input id="nf-nome" autocomplete="off" placeholder="Nome da fazenda"></div>
         <button class="btn" type="submit">Cadastrar fazenda</button></form>` : ""}
@@ -350,11 +372,29 @@ TELAS.conta = {
         toast("Nome da fazenda atualizado.");
       };
     });
+    $$("[data-excluir-faz]").forEach((b) => confirmar(b, async () => {
+      const f = S.fazendas.find((x) => x.id === b.dataset.excluirFaz);
+      b.disabled = true; b.textContent = "Conferindo…";
+      try { await store.excluirFazenda(f.id); toast(`${f.nome} excluída.`); }
+      catch (err) { b.disabled = false; b.textContent = "Excluir fazenda"; toast(err.message === "Esta fazenda tem lançamentos." ? `${f.nome} tem lançamentos e não pode ser excluída.` : "Não foi possível excluir: " + err.message); }
+    }));
+    confirmar($("#limparFaz"), async () => {
+      const b = $("#limparFaz"), lista = repetidas();
+      b.disabled = true;
+      let apagadas = 0, comDados = 0, falhas = 0;
+      for (const [i, f] of lista.entries()) {
+        b.textContent = `Conferindo ${i + 1} de ${lista.length}…`;
+        try { await store.excluirFazenda(f.id); apagadas++; }
+        catch (err) { if (err.message === "Esta fazenda tem lançamentos.") comDados++; else falhas++; }
+      }
+      toast(`${apagadas} ${apagadas === 1 ? "fazenda repetida apagada" : "fazendas repetidas apagadas"}.${comDados ? ` ${comDados} com lançamentos ficaram.` : ""}${falhas ? ` ${falhas} não puderam ser apagadas agora. Confira a internet.` : ""}`);
+    });
     const nf = $("#fNovaFaz");
     if (nf) nf.onsubmit = (ev) => {
       ev.preventDefault();
       const nome = $("#nf-nome").value.trim();
       if (!erros(nf, nome ? [] : [["nf-nome", "Informe o nome da fazenda."]])) return;
+      if (S.fazendas.some((f) => String(f.nome).trim().toLowerCase() === nome.toLowerCase())) { erros(nf, [["nf-nome", "Já existe uma fazenda com esse nome."]]); return; }
       telaAtual = null;
       store.criarFazenda(nome);
       toast(`${nome} cadastrada. Ela já está aberta.`);

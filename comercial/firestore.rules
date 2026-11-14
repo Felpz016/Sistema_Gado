@@ -42,7 +42,9 @@ service cloud.firestore {
       match /fazendas/{fazenda} {
         allow read: if podeUsar(conta);
         allow create, update: if dono(conta) && assinaturaAtiva(conta);
-        // lotes, pesagens, sanidade, saidas
+        // O sistema só oferece apagar fazenda sem nenhum lançamento.
+        allow delete: if dono(conta) && assinaturaAtiva(conta);
+        // lotes, pastos, pesagens, sanidade, trato, custos, saídas…
         match /{colecao}/{id} {
           allow read, write: if podeUsar(conta);
         }
