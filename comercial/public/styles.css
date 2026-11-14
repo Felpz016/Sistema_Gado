@@ -57,7 +57,7 @@ h1,h2,h3{font-family:var(--display);font-weight:800;margin:0;text-wrap:balance;t
 .top h1{font-size:34px;flex:1;min-width:0}
 .top .farm{display:none}
 .content{padding-block:22px 48px;padding-left:max(28px,env(safe-area-inset-left,0px));padding-right:max(28px,env(safe-area-inset-right,0px));
-  display:flex;flex-direction:column;gap:18px;max-width:1180px;width:100%}
+  display:flex;flex-direction:column;gap:18px;width:100%}
 #lista{display:flex;flex-direction:column;gap:18px}
 #form:empty,#avisos:empty,#abas:empty{display:none}
 
@@ -210,6 +210,9 @@ form.card{display:flex;flex-direction:column;gap:16px}
 .rowf .f{flex:1;min-width:150px}
 .item{border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px;background:var(--surface)}
 .item .ih{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap}
+.item.faz{padding:10px 14px;gap:6px}
+.item.faz .ih{align-items:center}
+.item.faz .ih b{font-size:20px}
 .item .ih b{font-family:var(--display);font-size:22px;font-weight:800;text-transform:uppercase;line-height:1}
 details.mais>summary{cursor:pointer;font-weight:600;font-size:13.5px;color:var(--grass-2);list-style:none}
 details.mais>summary::-webkit-details-marker{display:none}
@@ -305,3 +308,35 @@ details.mais[open]>summary{margin-bottom:10px}
 }
 @media (max-width:440px){.fgrid,.fgrid.c3,.fgrid.c4{grid-template-columns:1fr}.fgrid .f.meio{grid-column:auto}.custos{grid-template-columns:1fr 1fr}.pcard .nums b{font-size:21px}}
 [hidden]{display:none!important}
+
+/* ===== física dos botões =====
+   Botão cheio parece uma tecla: tem uma borda de baixo mais escura, sobe um pouco com o mouse
+   e afunda quando é tocado, com uma volta de mola. Abas, menu e segmentos também afundam. */
+:root{--mola:cubic-bezier(.34,1.56,.64,1)}
+.btn{transition:transform .22s var(--mola),box-shadow .22s var(--mola),background-color .15s,color .15s,border-color .15s;
+  box-shadow:0 3px 0 #B98510,0 6px 14px -6px rgba(10,23,16,.35);will-change:transform}
+.btn:hover{transform:translateY(-2px);box-shadow:0 5px 0 #B98510,0 12px 22px -8px rgba(10,23,16,.4)}
+.btn:active{transform:translateY(3px) scale(.98);box-shadow:0 0 0 #B98510,0 2px 4px -2px rgba(10,23,16,.3);transition-duration:.06s}
+.btn.earth{box-shadow:0 3px 0 #6E3418,0 6px 14px -6px rgba(10,23,16,.35)}
+.btn.earth:hover{box-shadow:0 5px 0 #6E3418,0 12px 22px -8px rgba(10,23,16,.4)}
+.btn.earth:active{box-shadow:0 0 0 #6E3418}
+.btn.ghost{box-shadow:0 3px 0 var(--ink)}
+.btn.ghost:hover{box-shadow:0 5px 0 var(--night-3)}
+.btn.ghost:active{box-shadow:0 0 0 var(--ink)}
+.btn:disabled,.btn:disabled:hover,.btn:disabled:active{transform:none;box-shadow:none}
+.mini,.abas a,.nav a,.tabbar a,.tabbar button,.seg label,.link,.sheet a,.sheet button,.side .acts button,tbody tr.click,.lcard,.pcard .lotes button{
+  transition:transform .2s var(--mola),background-color .15s,color .15s,border-color .15s}
+.mini:active,.abas a:active,.nav a:active,.side .acts button:active,.sheet a:active,.sheet button:active,.link:active,.pcard .lotes button:active{transform:scale(.94);transition-duration:.06s}
+.abas a:hover{transform:translateY(-1px)}
+.tabbar a:active,.tabbar button:active{transform:scale(.88);transition-duration:.06s}
+.tabbar a[aria-current="page"] svg,.tabbar button[aria-current="page"] svg{animation:pulo .45s var(--mola)}
+@keyframes pulo{0%{transform:translateY(0) scale(1)}40%{transform:translateY(-4px) scale(1.12)}100%{transform:none}}
+.seg label:active{transform:scale(.96);transition-duration:.06s}
+.seg input:checked+label{animation:encaixe .3s var(--mola)}
+@keyframes encaixe{0%{transform:scale(.92)}100%{transform:none}}
+.lcard:active,tbody tr.click:active{transform:scale(.99);transition-duration:.06s}
+.lcard:hover{transform:translateY(-2px)}
+@media (prefers-reduced-motion:reduce){
+  .btn,.btn:hover,.btn:active,.mini,.abas a,.nav a,.tabbar a,.tabbar button,.seg label,.lcard,tbody tr.click{transition:none;transform:none!important;animation:none!important}
+  .tabbar a[aria-current="page"] svg,.seg input:checked+label{animation:none}
+}

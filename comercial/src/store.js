@@ -12,7 +12,7 @@ import {
 import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
   collection, doc, onSnapshot, writeBatch, connectFirestoreEmulator,
-  setDoc, updateDoc, getDocs, query, limit, Timestamp,
+  setDoc, updateDoc, deleteDoc, getDocs, query, limit, Timestamp,
 } from "firebase/firestore";
 import { firebaseConfig } from "./firebase-config.js";
 import { exemplo } from "./exemplo.js";
@@ -182,7 +182,7 @@ function storeNuvem(avisar, config, emulador) {
           escolherFazenda(alvo ? alvo.id : null);
         }
         avisar();
-      }, deuErro), (err) => { S.fazendas = []; falha(err, "ler as fazendas"); }));
+      }, deuErro), (err) => { S.fazendas = []; S.erroFazendas = true; falha(err, "ler as fazendas"); }));
       if (contaId === uid) {
         parar.conta.push(ouvirSempre((deuCerto, deuErro) => onSnapshot(collection(fs, "contas", contaId, "membros"), (snap) => {
           deuCerto();
@@ -251,12 +251,28 @@ function storeNuvem(avisar, config, emulador) {
     novoId: () => doc(collection(fs, "contas", uid, "fazendas")).id,
     gravar,
     escolherFazenda,
-    criarFazenda(nome) {
-      const r = doc(collection(fs, "contas", S.conta.id, "fazendas"));
+    /** primeira: a fazenda da tela de boas-vindas usa sempre o mesmo endereço, então tocar
+     *  várias vezes em "Começar a usar" (ou repetir depois de um erro) não cria fazendas repetidas. */
+    criarFazenda(nome, primeira = false) {
+      const base = collection(fs, "contas", S.conta.id, "fazendas");
+      const r = primeira ? doc(base, "principal") : doc(base);
       const agora = new Date().toISOString();
-      semEspera(setDoc(r, { nome, criadoEm: agora, atualizadoEm: agora }), "criar a fazenda");
+      semEspera(setDoc(r, { nome, criadoEm: agora, atualizadoEm: agora }, { merge: true }), "criar a fazenda");
       escolherFazenda(r.id);
       return r.id;
+    },
+    /** A fazenda tem algum lançamento? Lê no máximo 1 documento por coleção. */
+    async fazendaTemDados(id) {
+      for (const col of COLECOES) {
+        const q = await getDocs(query(collection(fs, "contas", S.conta.id, "fazendas", id, col), limit(1)));
+        if (!q.empty) return true;
+      }
+      return false;
+    },
+    async excluirFazenda(id) {
+      if (id === S.fazendaId) throw new Error("Esta fazenda está aberta.");
+      if (await this.fazendaTemDados(id)) throw new Error("Esta fazenda tem lançamentos.");
+      await deleteDoc(doc(fs, "contas", S.conta.id, "fazendas", id));
     },
     renomearFazenda(id, nome) {
       semEspera(updateDoc(doc(fs, "contas", S.conta.id, "fazendas", id), { nome, atualizadoEm: new Date().toISOString() }), "renomear a fazenda");
@@ -389,6 +405,12 @@ function storeDemo(avisar) {
     },
     escolherFazenda,
     criarFazenda(nome) { const id = idNovo(); S.fazendas = [...S.fazendas, { id, nome }]; tudo.dados[id] = vazio(); escolherFazenda(id); return id; },
+    async fazendaTemDados(id) { const d = tudo.dados[id] || {}; return COLECOES.some((c) => (d[c] || []).length > 0); },
+    async excluirFazenda(id) {
+      if (id === S.fazendaId) throw new Error("Esta fazenda está aberta.");
+      if (await this.fazendaTemDados(id)) throw new Error("Esta fazenda tem lançamentos.");
+      S.fazendas = S.fazendas.filter((f) => f.id !== id); delete tudo.dados[id]; persistir(); avisar();
+    },
     renomearFazenda(id, nome) { S.fazendas = S.fazendas.map((f) => (f.id === id ? { ...f, nome } : f)); persistir(); avisar(); },
     async convidar() { throw new Error("O acesso para outras pessoas só funciona com o banco na nuvem ligado."); },
     async removerMembro() {},
